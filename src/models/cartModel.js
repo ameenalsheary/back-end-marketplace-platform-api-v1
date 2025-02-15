@@ -76,6 +76,10 @@ const cartSchema = new mongoose.Schema(
       minlength: [3, "Coupon name must be at least 3 characters."],
       maxlength: [32, "Coupon name cannot exceed 32 characters."],
     },
+    couponId: {
+      type: String,
+      trim: true
+    },
     couponDiscount: {
       type: Number,
       min: [0, "Coupon discount must be at least 0."],

@@ -1,10 +1,10 @@
 const asyncHandler = require("express-async-handler");
 const { Worker } = require('bullmq');
 const  mongoose = require("mongoose");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const ApiError = require("../utils/apiErrore");
 const productModel = require("../models/productModel");
-const couponModel = require("../models/couponModel");
 const cartModel = require("../models/cartModel");
 const { calcTotalCartPrice, handleItemsOfCartIfProductsUpdatedOrDeleted } = require("../utils/shoppingCartProcessing");
 const { findTheSmallestPriceInSize } = require("../utils/findTheSmallestPriceInSize");
@@ -662,14 +662,12 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
 // @desc    Apply a discount coupon to the user's cart
 // @route   PUT /api/v1/cart/applycoupon
 // @access  Private
-exports.applyCoupon = asyncHandler(async (req, res, next) => {
+exports.applyCoupon = asyncHandler(async (req, res) => {
   const { couponCode } = req.body;
 
   // Check if the coupon exists and is still valid
-  const coupon = await couponModel.findOne({
-    couponCode: couponCode.toUpperCase(),
-    expire: { $gt: Date.now() },
-  });
+  const promotions = await stripe.promotionCodes.list({ limit: 100 });
+  const coupon = promotions.data.find(c => c.code === couponCode && c.active === true);
 
   // Retrieve the user's cart
   let cart = await cartModel.findOne({ user: req.user._id });
@@ -683,12 +681,13 @@ exports.applyCoupon = asyncHandler(async (req, res, next) => {
 
     if (cart.cartItems.length > 0 && coupon) {
       const totalPrice = cart.totalPrice;
-      const discountAmount = (totalPrice * coupon.discount) / 100;
+      const discountAmount = (totalPrice * coupon.coupon.percent_off) / 100;
       const totalPriceAfterDiscount = (totalPrice - discountAmount).toFixed(2);
 
       // Update the cart with coupon details
-      cart.couponName = coupon.couponCode;
-      cart.couponDiscount = coupon.discount;
+      cart.couponName = coupon.code;
+      cart.couponDiscount = coupon.coupon.percent_off;
+      cart.couponId = coupon.id;
       cart.totalPriceAfterDiscount = totalPriceAfterDiscount;
       await cart.save();
     }

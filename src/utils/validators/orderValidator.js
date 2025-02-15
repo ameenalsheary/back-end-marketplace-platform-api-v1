@@ -1,7 +1,7 @@
 const { check } = require("express-validator");
 const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 
-exports.createCashOrderValidator = [
+exports.createOrderValidator = [
   check('phoneNumber')
     .notEmpty()
     .withMessage('Phone number is required.')

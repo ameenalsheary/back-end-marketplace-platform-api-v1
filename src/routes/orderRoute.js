@@ -1,13 +1,14 @@
 const express = require(`express`);
 
 const {
-  createCashOrderValidator,
+  createOrderValidator,
 } = require("../utils/validators/orderValidator");
 
 const {
   createCashOrder,
   filterOrders,
   getMyOrders,
+  createCheckoutSession
 } = require("../services/orderServise");
 const protect_allowedTo = require("../services/authServises/protect&allowedTo");
 
@@ -21,7 +22,7 @@ router.use(
 router
   .route("/createcashorder")
   .post(
-    createCashOrderValidator,
+    createOrderValidator,
     createCashOrder
   );
 
@@ -30,6 +31,13 @@ router
   .get(
     filterOrders,
     getMyOrders
+  );
+
+router
+  .route("/createcheckoutsession")
+  .post(
+    createOrderValidator,
+    createCheckoutSession
   );
 
 module.exports = router;

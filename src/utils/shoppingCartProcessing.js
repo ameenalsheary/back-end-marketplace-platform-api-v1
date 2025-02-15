@@ -86,6 +86,7 @@ exports.calcTotalCartPrice = async (cart, session) => {
     cart.totalPrice = 0;
     cart.couponName = undefined;
     cart.couponDiscount = undefined;
+    cart.couponId = undefined;
     cart.totalPriceAfterDiscount = undefined;
   }
 
