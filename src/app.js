@@ -10,7 +10,6 @@ const addSecurityMiddlewares = require("./middlewares/securityMiddleware");
 const mountRoutes = require("./routes");
 const ApiError = require("./utils/apiErrore");
 const globalError = require("./middlewares/erroreMiddleware");
-const { webhookCheckout } = require("./services/orderServise");
 
 // Initialize Express app
 const app = express();
@@ -20,13 +19,6 @@ dbConection();
 
 // Apply security-related middlewares (e.g., CORS, Helmet)
 addSecurityMiddlewares(app);
-
-// Checkout webhook
-app.post(
-  "/webhook-checkout",
-  express.raw({ type: "application/json" }),
-  webhookCheckout
-);
 
 // Middleware to parse JSON payloads with size restriction
 app.use(express.json({ limit: "20kb" }));

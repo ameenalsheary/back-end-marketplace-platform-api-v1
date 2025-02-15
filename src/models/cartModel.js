@@ -101,10 +101,6 @@ cartSchema.pre(/^find/, function (next) {
       "quantity",
       "color",
       "sizes",
-      "sold",
-      "ratingsAverage",
-      "ratingsQuantity",
-      "updatedAt",
     ].join(" "), // Join fields into a single string
   });
   next();
