@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const  mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
@@ -6,7 +9,10 @@ const ApiError = require("../utils/apiErrore");
 const cartModel = require("../models/cartModel");
 const orderModel = require("../models/orderModel");
 const { getAll } = require("./handlersFactory");
-const { calcTotalCartPrice } = require("../utils/shoppingCartProcessing");
+const {
+  calcTotalCartPrice,
+  handleItemsOfCartIfProductsUpdatedOrDeleted,
+} = require("../utils/shoppingCartProcessing");
 const cartQueue = require("../redisBullMqQueues/cartQueue");
 
 // @desc    Create a cash order
@@ -14,42 +20,42 @@ const cartQueue = require("../redisBullMqQueues/cartQueue");
 // @access  Pravite
 exports.createCashOrder = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
-  const { phoneNumber, country, state, city, street, postalCode } = req.body;
+  const { phone, country, state, city, street, postalCode } = req.body;
 
   // Fetch the shopping cart from the database
-  const shoppingCart = await cartModel.findOne({ user: userId });
-  if (!shoppingCart) {
+  const cart = await cartModel.findOne({ user: userId });
+  if (!cart) {
     return next(new ApiError(`No shopping cart for this user.`, 404));
   }
-
-  // Check if the shopping cart is empty
-  if (shoppingCart.cartItems.length === 0) {
-    return next(new ApiError(`Shopping cart is empty.`, 400));
-  }
-
-  // Extract job IDs for Redis BullMQ to remove later
-  const jobIds = shoppingCart.cartItems.map((cartItem) => cartItem.idOfRedisBullMqJob);
 
   // Start a Mongoose session to allow for transactions
   const session = await mongoose.startSession();
   session.startTransaction();
 
   let order;
+  let jobId;
   try {
+    // Handle items of cart if products updated or deleted
+    handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+
+    // Calculate and update the total cart price
+    await calcTotalCartPrice(cart, session);
+
+    // Check if the shopping cart is empty
+    if (cart.cartItems.length === 0) {
+      return next(new ApiError(`Shopping cart is empty.`, 400));
+    }
+
     // Create order
     order = (await orderModel.create(
       [
         {
-          user: shoppingCart.user,
-          orderItems: shoppingCart.cartItems,
-          taxPrice: shoppingCart.taxPrice,
-          shippingPrice: shoppingCart.shippingPrice,
-          totalPrice: shoppingCart.totalPrice,
-          couponName: shoppingCart.couponName,
-          couponDiscount: shoppingCart.couponDiscount,
-          totalPriceAfterDiscount: shoppingCart.totalPriceAfterDiscount,
+          user: userId,
+          orderItems: cart.cartItems,
+          pricing: cart.pricing,
+          coupon: cart.coupon,
           paymentMethod: "cash_on_delivery",
-          phoneNumber,
+          phone,
           shippingAddress: {
             country,
             state,
@@ -63,10 +69,15 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
     ))[0]; // Access the first element of the array
 
     // Clear shopping cart items
-    shoppingCart.cartItems = [];
+    cart.cartItems = [];
+
+    // Add ID of Redis BullMQ job to jobId to delete job later
+    if (cart?.idOfRedisBullMqJob) {
+      jobId = cart?.idOfRedisBullMqJob;
+    }
 
     // Calculate and update the total cart price
-    await calcTotalCartPrice(shoppingCart, session);
+    await calcTotalCartPrice(cart, session);
 
     // Commit the transaction to save all changes to the database
     await session.commitTransaction();
@@ -79,14 +90,10 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
     session.endSession();
   }
 
-  // Remove redis bullmq jobs of items
-  if (jobIds.length > 0) {
-    await Promise.all(
-      jobIds.map(async (jobId) => {
-        const job = await cartQueue.getJob(jobId);
-        if (job) await job.remove();
-      })
-    );
+  // Remove Redis BullMQ job
+  if (jobId) {
+    const job = await cartQueue.getJob(jobId);
+    if (job) await job.remove();
   }
 
   // Send a success response with order details
@@ -103,26 +110,56 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
-  const { phoneNumber, country, state, city, street, postalCode } = req.body;
+  const { phone, country, state, city, street, postalCode } = req.body;
 
   // Fetch the shopping cart from the database
-  const shoppingCart = await cartModel.findOne({ user: userId });
-  if (!shoppingCart) {
+  const cart = await cartModel.findOne({ user: userId });
+  if (!cart) {
     return next(new ApiError(`No shopping cart for this user.`, 404));
   }
 
-  // Check if the shopping cart is empty
-  if (shoppingCart.cartItems.length === 0) {
-    return next(new ApiError(`Shopping cart is empty.`, 400));
+  // Start a Mongoose session to allow for transactions
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Handle items of cart if products updated or deleted
+    handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+
+    // Calculate and update the total cart price
+    await calcTotalCartPrice(cart, session);
+
+    // Check if the shopping cart is empty
+    if (cart.cartItems.length === 0) {
+      return next(new ApiError(`Shopping cart is empty.`, 400));
+    }
+
+    // Commit the transaction to save all changes to the database
+    await session.commitTransaction();
+  } catch (error) {
+    // If an error occurs, abort the transaction to prevent any changes from being saved
+    await session.abortTransaction();
+    return next(new ApiError("Something went wrong. Please try again.", 500));
+  } finally {
+    // End the session whether the transaction succeeds or fails
+    session.endSession();
   }
 
   // Create line items for Stripe Checkout Session
-  const lineItems = shoppingCart.cartItems.map((item) => ({
+  const lineItems = cart.cartItems.map((item) => ({
     price_data: {
-      currency: 'usd', // Change to your preferred currency
+      currency: 'usd',
       product_data: {
-        name: item.product.title, // Use the product title
-        description: `Size: ${item.size || 'N/A'}, Color: ${item.color || 'N/A'}`, // Include size and color if available
+        name: item.product.title,
+        description: `Size: ${item.size || 'N/A'}, Color: ${item.color || 'N/A'}`,
+        metadata: {
+          product: item.product._id.toString(),
+          quantity: item.quantity,
+          size: item.size || "N/A",
+          color: item.color || "N/A",
+          price: item.price,
+          totalPrice: item.totalPrice,
+        },
       },
       unit_amount: item.price * 100, // Convert to cents
     },
@@ -130,47 +167,49 @@ exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
   }));
 
   // Add tax and shipping as line items (optional)
-  if (shoppingCart.taxPrice > 0) {
+  if (cart.taxPrice > 0) {
     lineItems.push({
       price_data: {
         currency: 'usd',
         product_data: {
           name: 'Tax',
         },
-        unit_amount: Math.round(shoppingCart.taxPrice * 100), // Convert to cents
+        unit_amount: Math.round(cart.taxPrice * 100), // Convert to cents
       },
       quantity: 1,
     });
   }
 
-  if (shoppingCart.shippingPrice > 0) {
+  if (cart.shippingPrice > 0) {
     lineItems.push({
       price_data: {
         currency: 'usd',
         product_data: {
           name: 'Shipping',
         },
-        unit_amount: Math.round(shoppingCart.shippingPrice * 100), // Convert to cents
+        unit_amount: Math.round(cart.shippingPrice * 100), // Convert to cents
       },
       quantity: 1,
     });
   }
 
-  const customer_email = req.user.email;
-  const promotion_code = shoppingCart.couponId;
-
   // Create a Stripe Checkout Session
-  const session = await stripe.checkout.sessions.create({
+  const customer_email = req.user.email;
+  const promotion_code = cart.coupon?.couponId;
+  const currentTime = Math.floor(Date.now() / 1000);
+  const checkoutSession = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
     line_items: lineItems,
     mode: 'payment',
     discounts: [{ promotion_code }],
-    success_url: `${req.protocol}://${req.get('host')}/api/v1/orders/success?session_id={CHECKOUT_SESSION_ID}`, // Redirect URL after successful payment
-    cancel_url: `${req.protocol}://${req.get('host')}/api/v1/cart`, // Redirect URL if the user cancels
+    // success_url: `${req.protocol}://${req.get('host')}/api/v1/orders/success?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${req.protocol}://${req.get('host')}/api/v1/orders`,
+    cancel_url: `${req.protocol}://${req.get('host')}/api/v1/cart`,
     customer_email,
+    expires_at: currentTime + 30 * 60, // 30 minutes from now (30 minutes * 60 seconds)
     metadata: {
       userId: userId.toString(),
-      phoneNumber,
+      phone,
       shippingAddress: JSON.stringify({
         country,
         state,
@@ -178,15 +217,23 @@ exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
         street,
         postalCode,
       }),
-      cartId: shoppingCart._id.toString(), // Save the cart ID for reference
+      cartId: cart._id.toString(), // Save the cart ID for reference
     },
   });
 
   // Send the session ID to the frontend
   res.status(200).json({
     status: "Success",
-    sessionId: session.id,
+    sessionId: checkoutSession,
   });
+});
+
+// @desc    Handle Stripe Webhook
+// @route   POST /api/v1/orders/webhook
+// @access  Public (Stripe will call this endpoint)
+exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
+  console.log("Stripe hook work successfully.");
+  res.status(200).json({ status: "Success" });
 });
 
 // @desc    Get my orders

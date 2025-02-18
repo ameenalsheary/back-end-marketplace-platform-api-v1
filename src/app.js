@@ -10,12 +10,20 @@ const addSecurityMiddlewares = require("./middlewares/securityMiddleware");
 const mountRoutes = require("./routes");
 const ApiError = require("./utils/apiErrore");
 const globalError = require("./middlewares/erroreMiddleware");
+const { handleStripeWebhook } = require("./services/orderServise");
 
 // Initialize Express app
 const app = express();
 
 // Database connection
 dbConection();
+
+// Checkout webhook
+app.post(
+  "/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
 
 // Apply security-related middlewares (e.g., CORS, Helmet)
 addSecurityMiddlewares(app);

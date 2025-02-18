@@ -2,13 +2,13 @@ const { check } = require("express-validator");
 const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 
 exports.createOrderValidator = [
-  check('phoneNumber')
+  check('phone')
     .notEmpty()
-    .withMessage('Phone number is required.')
+    .withMessage('Phone is required.')
     .isString()
-    .withMessage('Phone number must be of type string.')
+    .withMessage('Phone must be of type string.')
     .matches(/^\+?\d{8,15}$/) // Allows optional + and 8-15 digits
-    .withMessage('Phone number must be between 8 and 15 digits and may include a country code (e.g., +123456789).'),
+    .withMessage('Phone must be between 8 and 15 digits and may include a country code (e.g., +123456789).'),
 
   check('country')
     .notEmpty()

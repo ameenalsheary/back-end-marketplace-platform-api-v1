@@ -81,11 +81,12 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let jobId;
   try {
     // Find or create the user's cart in the database
     let cart =
       (await cartModel.findOne({ user: req.user._id }).session(session)) ||
-      (await cartModel.create({ user: req.user._id, cartItems: [] }).session(session));
+      (await cartModel.create([{ user: req.user._id, cartItems: [] }], { session }))[0];
 
     // Handle items of cart if products updated or deleted
     handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
@@ -131,30 +132,36 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
         size,
         color: product.color,
         price,
-        idOfRedisBullMqJob: cart.cartItems[productIndex].idOfRedisBullMqJob,
       };
     } else {
-      // Add redis bullmq job to remove item from cart if user doesn't buy it after 30 minutes
-      const job = await cartQueue.add(
-        "clearCart",
-        { userId: req.user._id, product: { productId, size } },
-        {
-          delay: 15 * 60 * 1000, // 30 minutes
-          removeOnComplete: true,
-          removeOnFail: false,
-          attempts: 10000, // Retries up to 10000 times if it fails
-          backoff: { type: 'exponential', delay: 5000 } // 5-second exponential backoff
-        }
-      );
-
       cart.cartItems.unshift({
         product: product._id,
         quantity,
         size,
         color: product.color,
         price,
-        idOfRedisBullMqJob: job.id,
       });
+    }
+
+    // Add redis bullmq job to remove item from cart if user doesn't buy it after 30 minutes
+    if (!cart.idOfRedisBullMqJob) {
+      const job = await cartQueue.add(
+        "clearCart",
+        { cartId: cart._id.toString() },
+        {
+          delay: 30 * 60 * 1000, // 30 minutes
+          removeOnComplete: true,
+          removeOnFail: false,
+          attempts: 10000, // Retries up to 10000 times if it fails
+          backoff: { type: 'exponential', delay: 5000 } // 5-second exponential backoff
+        }
+      );
+      cart.idOfRedisBullMqJob = job.id;
+
+      // Add ID of Redis BullMQ job to jobId to delete job if a error occurs.
+      if (cart?.idOfRedisBullMqJob) {
+        jobId = cart?.idOfRedisBullMqJob;
+      }
     }
 
     // Calculate and update the total cart price
@@ -163,6 +170,12 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
   // Commit the transaction to save all changes to the database
     await session.commitTransaction();
   } catch (error) {
+    // Remove Redis BullMQ job
+    if (jobId) {
+      const job = await cartQueue.getJob(jobId);
+      if (job) await job.remove();
+    }
+
       // If an error occurs, abort the transaction to prevent any changes from being saved
     await session.abortTransaction();
     return next(new ApiError("Something went wrong. Please. Try again.", 500));
@@ -187,8 +200,7 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
 const worker = new Worker(
   "cartQueue",
   async (job) => {
-    const { userId, product } = job.data;
-    const { productId, size } = product;
+    const { cartId } = job.data;
 
     // Start a Mongoose session to allow for transactions
     const session = await mongoose.startSession();
@@ -196,57 +208,82 @@ const worker = new Worker(
 
     try {
       // Find the user's cart in the database
-      const cart = await cartModel.findOne({ user: userId }).session(session);
+      let cart = await cartModel.findById(cartId).session(session);
 
       if (cart) {
-        // Handle items of cart if products updated or deleted
-        handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
-
-        // Find the index of the product in the cart using productId and size
-        const productIndex = cart.cartItems.findIndex(
-          (item) =>
-            item.product._id.toString() === productId && item.size === size
-        );
-
-        // Check if the product exists in the cart
-        if (productIndex > -1) {
-          const cartItem = cart.cartItems[productIndex];
+        const storeUpdatedSizes = [];
+        const bulkOps = cart.cartItems.map((cartItem) => {
+          const { product, quantity, size } = cartItem;
 
           // Handle cases where the product has no sizes
-          if (cartItem.product.sizes.length === 0) {
+          if (product.sizes.length === 0) {
             // Increase the product's quantity in the database to reflect the returned stock
-            await productModel.updateOne(
-              { _id: productId },
-              { $inc: { quantity: cartItem.quantity } },
-              { timestamps: false, session }
-            );
-
-            // Remove the product from the cart after updating the stock
-            cart.cartItems.splice(productIndex, 1);
+            return {
+              updateOne: {
+                filter: { _id: product._id },
+                update: { $inc: { quantity: quantity } },
+                timestamps: false
+              },
+            };
           }
           // Handle cases where the product has sizes
-          else if (cartItem.product.sizes.length > 0) {
-            // Create a new sizes array, updating the quantity for the specific size returned to stock
-            const updatedSizes = cartItem.product.sizes.map((item) => ({
-              ...item.toObject(),
-              // Increase the quantity only for the size matching the cart item; keep others unchanged
-              quantity:
-                item.size === size
-                  ? item.quantity + cartItem.quantity
-                  : item.quantity,
-            }));
-
-            // Update the product document in the database with the modified sizes array
-            await productModel.updateOne(
-              { _id: productId },
-              { $set: { sizes: updatedSizes } },
-              { new: true, timestamps: false, session }
+          else if (product.sizes.length > 0) {
+            // Check if the product already exists in the `storeUpdatedSizes` array
+            const existingProductIndex = storeUpdatedSizes.findIndex(
+              (stored) => stored.id === product._id.toString()
             );
 
-            // Remove the product from the cart after updating the stock for the specific size
-            cart.cartItems.splice(productIndex, 1);
+            let updatedSizes;
+
+            if (existingProductIndex !== -1) {
+              // If the product is already in `storeUpdatedSizes`, update the sizes array by adjusting the quantity for the matching size
+              updatedSizes = storeUpdatedSizes[existingProductIndex].sizes.map(
+                (item) => ({
+                  ...item,
+                  quantity: item.size === size ? item.quantity + quantity : item.quantity,
+                })
+              );
+
+              // Update the sizes in the `storeUpdatedSizes` array
+              storeUpdatedSizes[existingProductIndex].sizes = updatedSizes;
+            } else {
+              // If the product is not in `storeUpdatedSizes`, create an updated sizes array from the original product sizes
+              updatedSizes = product.sizes.map((item) => ({
+                ...item.toObject(),
+                quantity: item.size === size ? item.quantity + quantity : item.quantity,
+              }));
+
+              // Add the product with its updated sizes to `storeUpdatedSizes`
+              storeUpdatedSizes.push({
+                id: product._id.toString(),
+                sizes: updatedSizes,
+              });
+            }
+
+            // Find the size with the smallest price from the updated sizes
+            const theSmallestPriceSize = findTheSmallestPriceInSize(updatedSizes);
+
+            return {
+              updateOne: {
+                filter: { _id: product._id },
+                update: {
+                  $set: { sizes: updatedSizes },
+                  price: theSmallestPriceSize.price ?? "",
+                  priceBeforeDiscount: theSmallestPriceSize.priceBeforeDiscount ?? "",
+                  discountPercent: theSmallestPriceSize.discountPercent ?? "",
+                  quantity: theSmallestPriceSize.quantity ?? "",
+                },
+                timestamps: false
+              },
+            };
           }
-        }
+        });
+
+        // Execute bulkWrite operations to update products
+        await productModel.bulkWrite(bulkOps, { session });
+
+        // Clear all items from the cart
+        cart.cartItems = [];
 
         // Recalculate the total cart price after updates
         await calcTotalCartPrice(cart, session);
@@ -257,7 +294,7 @@ const worker = new Worker(
     } catch (error) {
       // If an error occurs, abort the transaction to prevent any changes from being saved
       await session.abortTransaction();
-      throw error;
+      return next(new ApiError("Something went wrong. Please. Try again.", 500));
     } finally {
       // End the session whether the transaction succeeds or fails
       session.endSession();
@@ -267,13 +304,13 @@ const worker = new Worker(
 );
 
 // Check jobs completed or failed
-// worker
-//   .on("completed", (job) => {    
-//     console.log(`Job ${job.id} completed!`);
-//   })
-//   .on("failed", (job, err) => {
-//     console.error(`Job ${job.id} failed with error: ${err.message}`);
-//   });
+worker
+  .on("completed", (job) => {    
+    console.log(`Clear cart job ${job.id} completed!`);
+  })
+  .on("failed", (job, err) => {
+    console.error(`Clear cart job ${job.id} failed with error: ${err.message}`);
+  });
 
 // @desc    Retrieve the current user's cart
 // @route   GET /api/v1/cart
@@ -433,7 +470,7 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
   session.startTransaction();
 
   let cart;
-  let idOfRedisBullMqJob;
+  let jobId;
   try {
     // Find the user's cart in the database
     cart = await cartModel.findOne({ user: req.user._id }).session(session);
@@ -450,9 +487,6 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
       // Check if the product exists in the cart
       if (productIndex > -1) {
         const cartItem = cart.cartItems[productIndex];
-
-        // Add ID of redis bullmq job to idOfRedisBullMqJob
-        idOfRedisBullMqJob = cartItem.idOfRedisBullMqJob;
 
         // Handle cases where the product has no sizes
         if (cartItem.product.sizes.length === 0) {
@@ -490,6 +524,11 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
         }
       }
 
+      // Add ID of Redis BullMQ job to jobId to delete job later
+      if (cart.cartItems.length === 0 && cart?.idOfRedisBullMqJob) {
+        jobId = cart?.idOfRedisBullMqJob;
+      }
+
       // Recalculate the total cart price after updates
       await calcTotalCartPrice(cart, session);
 
@@ -505,9 +544,9 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
     session.endSession();
   }
 
-  // Remove redis bullmq job of item
-  if (idOfRedisBullMqJob) {
-    const job = await cartQueue.getJob(idOfRedisBullMqJob);
+  // Remove Redis BullMQ job
+  if (jobId) {
+    const job = await cartQueue.getJob(jobId);
     if (job) await job.remove();
   }
 
@@ -537,7 +576,7 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
   session.startTransaction();
 
   let cart;
-  const jobIds = [];
+  let jobId;
   try {
     // Find the user's cart in the database
     cart = await cartModel.findOne({ user: req.user._id }).session(session);
@@ -545,10 +584,7 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
     if (cart) {
       const storeUpdatedSizes = [];
       const bulkOps = cart.cartItems.map((cartItem) => {
-        const { product, quantity, size, idOfRedisBullMqJob } = cartItem;
-
-        // add IDs of items in jobIds
-        jobIds.push(idOfRedisBullMqJob);
+        const { product, quantity, size } = cartItem;
 
         // Handle cases where the product has no sizes
         if (product.sizes.length === 0) {
@@ -620,6 +656,11 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
       // Clear all items from the cart
       cart.cartItems = [];
 
+      // Add ID of Redis BullMQ job to jobId to delete job later
+      if (cart?.idOfRedisBullMqJob) {
+        jobId = cart?.idOfRedisBullMqJob;
+      }
+
       // Recalculate the total cart price after updates
       await calcTotalCartPrice(cart, session);
 
@@ -635,14 +676,10 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
     session.endSession();
   }
 
-  // Remove redis bullmq jobs of items
-  if (jobIds.length > 0) {
-    await Promise.all(
-      jobIds.map(async (jobId) => {
-        const job = await cartQueue.getJob(jobId);
-        if (job) await job.remove();
-      })
-    );
+  // Remove Redis BullMQ job
+  if (jobId) {
+    const job = await cartQueue.getJob(jobId);
+    if (job) await job.remove();
   }
 
   if (!cart) {
@@ -676,21 +713,17 @@ exports.applyCoupon = asyncHandler(async (req, res) => {
     // Handle items of cart if products updated or deleted
     handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
 
+    // Add coupon details to cart
+    if (cart.cartItems.length > 0 && coupon) {
+      cart.coupon = {
+        couponId: coupon.id,
+        couponCode: coupon.code,
+        couponDiscount: coupon.coupon.percent_off,
+      }
+    }
+
     // Calculate the current total price of the cart
     await calcTotalCartPrice(cart);
-
-    if (cart.cartItems.length > 0 && coupon) {
-      const totalPrice = cart.totalPrice;
-      const discountAmount = (totalPrice * coupon.coupon.percent_off) / 100;
-      const totalPriceAfterDiscount = (totalPrice - discountAmount).toFixed(2);
-
-      // Update the cart with coupon details
-      cart.couponName = coupon.code;
-      cart.couponDiscount = coupon.coupon.percent_off;
-      cart.couponId = coupon.id;
-      cart.totalPriceAfterDiscount = totalPriceAfterDiscount;
-      await cart.save();
-    }
   } else {
     // If no cart exists, create a new cart for the user
     cart = await cartModel.create({ user: req.user._id, cartItems: [] });

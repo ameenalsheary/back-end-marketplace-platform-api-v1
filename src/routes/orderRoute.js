@@ -6,9 +6,9 @@ const {
 
 const {
   createCashOrder,
+  createCheckoutSession,
   filterOrders,
   getMyOrders,
-  createCheckoutSession
 } = require("../services/orderServise");
 const protect_allowedTo = require("../services/authServises/protect&allowedTo");
 
@@ -27,17 +27,17 @@ router
   );
 
 router
-  .route("/")
-  .get(
-    filterOrders,
-    getMyOrders
-  );
-
-router
   .route("/createcheckoutsession")
   .post(
     createOrderValidator,
     createCheckoutSession
+  );
+
+router
+  .route("/")
+  .get(
+    filterOrders,
+    getMyOrders
   );
 
 module.exports = router;

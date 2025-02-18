@@ -36,11 +36,6 @@ const cartItemSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Total price must be at least 0."],
     },
-    idOfRedisBullMqJob: {
-      type: String,
-      required: true,
-      trim: true,
-    },
   },
   { timestamps: true }
 );
@@ -55,39 +50,51 @@ const cartSchema = new mongoose.Schema(
       index: true, // Index for better performance on queries
     },
     cartItems: [cartItemSchema], // Use the defined cart item schema
-    taxPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Tax price must be at least 0."],
+    pricing: {
+      taxPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Tax price must be at least 0."],
+      },
+      shippingPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Shipping price must be at least 0."],
+      },
+      totalPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Total price must be at least 0."],
+      },
+      totalPriceAfterDiscount: {
+        type: Number,
+        min: [0, "Total price after discount must be at least 0."],
+      },
     },
-    shippingPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Shipping price must be at least 0."],
+    coupon: {
+      couponId: {
+        type: String,
+        trim: true,
+      },
+      couponCode: {
+        type: String,
+        trim: true,
+        minlength: [3, "Coupon code must be at least 3 characters."],
+        maxlength: [32, "Coupon code cannot exceed 32 characters."],
+      },
+      couponDiscount: {
+        type: Number,
+        min: [0, "Coupon discount must be at least 0."],
+        max: [100, "Coupon discount cannot exceed 100."],
+      },
+      discountedAmount: {
+        type: Number,
+        min: [0, "Discounted amount must be at least 0."],
+      },
     },
-    totalPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Total price must be at least 0."],
-    },
-    couponName: {
+    idOfRedisBullMqJob: {
       type: String,
       trim: true,
-      minlength: [3, "Coupon name must be at least 3 characters."],
-      maxlength: [32, "Coupon name cannot exceed 32 characters."],
-    },
-    couponId: {
-      type: String,
-      trim: true
-    },
-    couponDiscount: {
-      type: Number,
-      min: [0, "Coupon discount must be at least 0."],
-      max: [100, "Coupon discount cannot exceed 100."],
-    },
-    totalPriceAfterDiscount: {
-      type: Number,
-      min: [0, "Total price after discount must be at least 0."],
     },
   },
   { timestamps: true }

@@ -60,34 +60,31 @@ exports.calcTotalCartPrice = async (cart, session) => {
 
     // Calculate total price for items in the cart
     let totalPrice = cart.cartItems.reduce((total, item) => {
-      const itemTotal = item.price * item.quantity;
-      item.totalPrice = parseFloat(itemTotal.toFixed(2)); // Ensure it's stored as a number, not a string
-      return total + itemTotal;
+      const itemTotalPrice = item.price * item.quantity;
+      item.totalPrice = parseFloat(itemTotalPrice.toFixed(2)); // Ensure it's stored as a number, not a string
+      return total + itemTotalPrice;
     }, 0);
 
     // Add tax and shipping prices
-    cart.taxPrice = taxPrice;
-    cart.shippingPrice = shippingPrice;
+    cart.pricing.taxPrice = taxPrice;
+    cart.pricing.shippingPrice = shippingPrice;
     totalPrice += taxPrice + shippingPrice;
-
-    cart.totalPrice = parseFloat(totalPrice.toFixed(2));
+    cart.pricing.totalPrice = parseFloat(totalPrice.toFixed(2));
 
     // Apply discount if a coupon is used
-    if (cart.couponName && cart.couponDiscount) {
-      const discountAmount = (totalPrice * cart.couponDiscount) / 100;
-      cart.totalPriceAfterDiscount = parseFloat(
-        (totalPrice - discountAmount).toFixed(2)
-      );
+    if (cart.coupon?.couponCode && cart.coupon?.couponDiscount) {
+      const discountAmount = (totalPrice * cart.coupon.couponDiscount) / 100;
+      cart.pricing.totalPriceAfterDiscount = parseFloat((totalPrice - discountAmount).toFixed(2));
+      cart.coupon.discountedAmount = parseFloat(discountAmount.toFixed(2));
     }
   } else {
-    // No items in the cart, reset prices
-    cart.taxPrice = 0;
-    cart.shippingPrice = 0;
-    cart.totalPrice = 0;
-    cart.couponName = undefined;
-    cart.couponDiscount = undefined;
-    cart.couponId = undefined;
-    cart.totalPriceAfterDiscount = undefined;
+    // No items in the cart, reset prices and clear coupon/job details
+    cart.pricing.taxPrice = 0;
+    cart.pricing.shippingPrice = 0;
+    cart.pricing.totalPrice = 0;
+    cart.pricing.totalPriceAfterDiscount = undefined;
+    cart.coupon = undefined;
+    cart.idOfRedisBullMqJob = undefined;
   }
 
   // Save the updated cart object

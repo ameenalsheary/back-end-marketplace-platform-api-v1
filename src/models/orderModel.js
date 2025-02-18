@@ -48,35 +48,47 @@ const orderSchema = new mongoose.Schema(
       required: [true, "User ID is required."],
     },
     orderItems: [orderItemSchema], // Use the defined order item schema
-    taxPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Tax price must be at least 0."],
+    pricing: {
+      taxPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Tax price must be at least 0."],
+      },
+      shippingPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Shipping price must be at least 0."],
+      },
+      totalPrice: {
+        type: Number,
+        default: 0,
+        min: [0, "Total price must be at least 0."],
+      },
+      totalPriceAfterDiscount: {
+        type: Number,
+        min: [0, "Total price after discount must be at least 0."],
+      },
     },
-    shippingPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Shipping price must be at least 0."],
-    },
-    totalPrice: {
-      type: Number,
-      default: 0,
-      min: [0, "Total price must be at least 0."],
-    },
-    couponName: {
-      type: String,
-      trim: true,
-      minlength: [3, "Coupon name must be at least 3 characters."],
-      maxlength: [32, "Coupon name cannot exceed 32 characters."],
-    },
-    couponDiscount: {
-      type: Number,
-      min: [0, "Coupon discount must be at least 0."],
-      max: [100, "Coupon discount cannot exceed 100."],
-    },
-    totalPriceAfterDiscount: {
-      type: Number,
-      min: [0, "Total price after discount must be at least 0."],
+    coupon: {
+      couponId: {
+        type: String,
+        trim: true,
+      },
+      couponCode: {
+        type: String,
+        trim: true,
+        minlength: [3, "Coupon code must be at least 3 characters."],
+        maxlength: [32, "Coupon code cannot exceed 32 characters."],
+      },
+      couponDiscount: {
+        type: Number,
+        min: [0, "Coupon discount must be at least 0."],
+        max: [100, "Coupon discount cannot exceed 100."],
+      },
+      discountedAmount: {
+        type: Number,
+        min: [0, "Discounted amount must be at least 0."],
+      },
     },
     paymentMethod: {
       type: String,
@@ -97,13 +109,13 @@ const orderSchema = new mongoose.Schema(
       default: "processing",
     },
     deliveredAt: { type: Date },
-    phoneNumber: {
+    phone: {
       type: String,
-      required: [true, "Phone number is required."],
+      required: [true, "Phone is required."],
       trim: true,
       match: [
         /^\+?\d{8,15}$/,
-        "Phone number must be between 8 and 15 digits and may include a country code (e.g., +123456789).",
+        "Phone must be between 8 and 15 digits and may include a country code (e.g., +123456789).",
       ],
     },
     shippingAddress: {
