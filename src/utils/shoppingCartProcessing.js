@@ -1,10 +1,12 @@
 const mongoose = require("mongoose");
 const { ObjectId } = mongoose.Types;
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const appSettingsModel = require("../models/appSettingsModel");
+const cartQueue = require("../redisBullMqQueues/cartQueue");
 
 // Handle items of cart if products updated or deleted
-exports.handleItemsOfCartIfProductsUpdatedOrDeleted = function (cart) {
+exports.filterAndUpdateCartItems = function (cart) {
   if (cart.cartItems.length === 0) return cart;
 
   cart.cartItems = cart.cartItems.filter((item) => {
@@ -52,7 +54,7 @@ exports.handleItemsOfCartIfProductsUpdatedOrDeleted = function (cart) {
   return cart;
 }
 
-exports.calcTotalCartPrice = async (cart, session) => {
+exports.calculateAndUpdateCartPricing = async (cart, session) => {
   // Check if there are items in the cart
   if (cart.cartItems?.length > 0) {
     // Fetch app settings or provide default values
@@ -85,8 +87,32 @@ exports.calcTotalCartPrice = async (cart, session) => {
     cart.pricing.totalPriceAfterDiscount = undefined;
     cart.coupon = undefined;
     cart.idOfRedisBullMqJob = undefined;
+    cart.idOfStripeCheckoutSession = undefined;    
   }
 
   // Save the updated cart object
   await cart.save({ session });
+};
+
+// Remove Redis BullMQ job
+exports.removeRedisBullMQJob = async (jobId) => {
+  if (jobId) {
+    try {
+      const job = await cartQueue.getJob(jobId);
+      if (job) await job.remove();
+    } catch {
+      // Do nothing
+    }
+  }
+};
+
+// Expire Stripe session
+exports.expireStripeSession = async (sessionsId) => {
+  if (sessionsId) {
+    try {
+      await stripe.checkout.sessions.expire(sessionsId);
+    } catch {
+      // Do nothing
+    }
+  }
 };

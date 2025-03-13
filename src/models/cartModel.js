@@ -96,6 +96,10 @@ const cartSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    idOfStripeCheckoutSession: {
+      type: String,
+      trim: true,
+    },
   },
   { timestamps: true }
 );

@@ -6,7 +6,12 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const ApiError = require("../utils/apiErrore");
 const productModel = require("../models/productModel");
 const cartModel = require("../models/cartModel");
-const { calcTotalCartPrice, handleItemsOfCartIfProductsUpdatedOrDeleted } = require("../utils/shoppingCartProcessing");
+const {
+  calculateAndUpdateCartPricing,
+  filterAndUpdateCartItems,
+  removeRedisBullMQJob,
+  expireStripeSession,
+} = require("../utils/shoppingCartUtilitiesfunctions");
 const { findTheSmallestPriceInSize } = require("../utils/findTheSmallestPriceInSize");
 const redisBullMQConnection = require('../config/redisBullMq');
 const cartQueue = require("../redisBullMqQueues/cartQueue");
@@ -45,6 +50,22 @@ const validateProductAvailability = (product, quantity, size) => {
   return `We're sorry, but this product is not available for purchase.`; // Fallback case
 };
 
+// add Redis BullMQ job
+const addRedisBullMQJob = async (cartId) => {
+  const job = await cartQueue.add(
+    "clearCart",
+    { cartId },
+    {
+      delay: 30 * 60 * 1000, // 30 minutes
+      removeOnComplete: true,
+      removeOnFail: false,
+      attempts: 10000, // Retries up to 10000 times if it fails
+      backoff: { type: 'exponential', delay: 5000 } // 5-second exponential backoff
+    }
+  );
+  return job;
+};
+
 // @desc    Add a product to the user's cart
 // @route   POST /api/v1/cart
 // @access  Private
@@ -70,18 +91,17 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
   if (product.sizes.length <= 0) size = undefined;
 
   // Determine the correct price based on the selected size (if sizes exist)
-  const price =
-    product.sizes.length > 0
-      ? product.sizes.find(
-          (item) => `${item.size}`.toLowerCase() === `${size}`.toLowerCase()
-        ).price
-      : product.price;
+  const price = product.sizes.length > 0
+    ? product.sizes.find((item) => `${item.size}`.toLowerCase() === `${size}`.toLowerCase()).price
+    : product.price;
 
   // Start a Mongoose session to allow for transactions
   const session = await mongoose.startSession();
   session.startTransaction();
 
-  let jobId;
+  let redisBullMQJobId;
+  let stripeCheckOutSessionId;
+
   try {
     // Find or create the user's cart in the database
     let cart =
@@ -89,7 +109,7 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
       (await cartModel.create([{ user: req.user._id, cartItems: [] }], { session }))[0];
 
     // Handle items of cart if products updated or deleted
-    handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+    filterAndUpdateCartItems(cart);
 
     // Handle cases where the product has no sizes
     if (product.sizes.length === 0) {
@@ -143,38 +163,33 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Add redis bullmq job to remove item from cart if user doesn't buy it after 30 minutes
+    // Add redis bullMQ job to remove items from cart if user doesn't buy them after 30 minutes
     if (!cart.idOfRedisBullMqJob) {
-      const job = await cartQueue.add(
-        "clearCart",
-        { cartId: cart._id.toString() },
-        {
-          delay: 30 * 60 * 1000, // 30 minutes
-          removeOnComplete: true,
-          removeOnFail: false,
-          attempts: 10000, // Retries up to 10000 times if it fails
-          backoff: { type: 'exponential', delay: 5000 } // 5-second exponential backoff
-        }
-      );
+      const job = await addRedisBullMQJob(cart._id.toString());
+
+      // Add ID of Redis BullMQ job to cart
       cart.idOfRedisBullMqJob = job.id;
 
-      // Add ID of Redis BullMQ job to jobId to delete job if a error occurs.
+      // Add ID of Redis BullMQ job to redisBullMQJobId to remove job if a error occurs.
       if (cart?.idOfRedisBullMqJob) {
-        jobId = cart?.idOfRedisBullMqJob;
+        redisBullMQJobId = cart?.idOfRedisBullMqJob;
       }
     }
 
+    // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+    if (cart?.idOfStripeCheckoutSession) {
+      stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
+      cart.idOfStripeCheckoutSession = undefined;
+    }
+
     // Calculate and update the total cart price
-    await calcTotalCartPrice(cart, session);
+    await calculateAndUpdateCartPricing(cart, session);
 
   // Commit the transaction to save all changes to the database
     await session.commitTransaction();
   } catch (error) {
     // Remove Redis BullMQ job
-    if (jobId) {
-      const job = await cartQueue.getJob(jobId);
-      if (job) await job.remove();
-    }
+    await removeRedisBullMQJob(redisBullMQJobId);
 
       // If an error occurs, abort the transaction to prevent any changes from being saved
     await session.abortTransaction();
@@ -183,6 +198,9 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
     // End the session whether the transaction succeeds or fails
     session.endSession();
   }
+
+  // Expire Stripe session if exists
+  await expireStripeSession(stripeCheckOutSessionId);
 
   // Fetch the updated cart from the database
   cart = await cartModel.findOne({ user: req.user._id });
@@ -205,6 +223,8 @@ const worker = new Worker(
     // Start a Mongoose session to allow for transactions
     const session = await mongoose.startSession();
     session.startTransaction();
+
+    let stripeCheckOutSessionId;
 
     try {
       // Find the user's cart in the database
@@ -285,8 +305,13 @@ const worker = new Worker(
         // Clear all items from the cart
         cart.cartItems = [];
 
+        // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+        if (cart?.idOfStripeCheckoutSession) {
+          stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
+        }
+
         // Recalculate the total cart price after updates
-        await calcTotalCartPrice(cart, session);
+        await calculateAndUpdateCartPricing(cart, session);
 
         // Commit the transaction to save all changes to the database
         await session.commitTransaction();
@@ -299,6 +324,9 @@ const worker = new Worker(
       // End the session whether the transaction succeeds or fails
       session.endSession();
     }
+
+    // Expire Stripe session if exists
+    await expireStripeSession(stripeCheckOutSessionId);
   },
   { connection: redisBullMQConnection }
 );
@@ -319,16 +347,27 @@ exports.getCart = asyncHandler(async (req, res) => {
   // Find the user's cart
   let cart = await cartModel.findOne({ user: req.user._id });
 
+  let stripeCheckOutSessionId;
+
   if (cart) {
     // Handle items of cart if products updated or deleted
-    handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+    filterAndUpdateCartItems(cart);
+
+    // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+    if (cart?.idOfStripeCheckoutSession) {
+      stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
+      cart.idOfStripeCheckoutSession = undefined;
+    }
 
     // Calculate total cart price if cart exists
-    await calcTotalCartPrice(cart);
+    await calculateAndUpdateCartPricing(cart);
   } else {
     // If no cart exists, create an empty one for the user
     cart = await cartModel.create({ user: req.user._id, cartItems: [] });
   }
+
+  // Expire Stripe session if exists
+  await expireStripeSession(stripeCheckOutSessionId);
 
   // Send the response with cart data
   res.status(200).json({
@@ -351,13 +390,15 @@ exports.updateProductQuantityInCart = asyncHandler(async (req, res, next) => {
   session.startTransaction();
 
   let cart;
+  let stripeCheckOutSessionId;
+
   try {
     // Find the user's cart in the database
     cart = await cartModel.findOne({ user: req.user._id }).session(session);
 
     if (cart) {
       // Handle items of cart if products updated or deleted
-      handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+      filterAndUpdateCartItems(cart);
 
       // Find the index of the product in the cart using productId and size
       const productIndex = cart.cartItems.findIndex(
@@ -408,10 +449,7 @@ exports.updateProductQuantityInCart = asyncHandler(async (req, res, next) => {
           const updatedSizes = cartItem.product.sizes.map((item) => ({
             ...item.toObject(),
             // Adjust the quantity for the matching size; leave others unchanged
-            quantity:
-              item.size === size
-                ? totalAvailableQuantity - quantity
-                : item.quantity,
+            quantity:item.size === size ? totalAvailableQuantity - quantity : item.quantity,
           }));
 
           // Update the product document in the database with the modified sizes array
@@ -426,8 +464,14 @@ exports.updateProductQuantityInCart = asyncHandler(async (req, res, next) => {
         }
       }
 
+      // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+      if (cart?.idOfStripeCheckoutSession) {
+        stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
+        cart.idOfStripeCheckoutSession = undefined;
+      }
+
       // Recalculate the total cart price after updates
-      await calcTotalCartPrice(cart, session);
+      await calculateAndUpdateCartPricing(cart, session);
 
       // Commit the transaction to save all changes to the database
       await session.commitTransaction();
@@ -440,6 +484,9 @@ exports.updateProductQuantityInCart = asyncHandler(async (req, res, next) => {
     // End the session whether the transaction succeeds or fails
     session.endSession();
   }
+
+  // Expire Stripe session if exists
+  await expireStripeSession(stripeCheckOutSessionId);
 
   if (cart) {
     // Fetch the updated cart from the database
@@ -470,14 +517,16 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
   session.startTransaction();
 
   let cart;
-  let jobId;
+  let redisBullMQJobId;
+  let stripeCheckOutSessionId;
+
   try {
     // Find the user's cart in the database
     cart = await cartModel.findOne({ user: req.user._id }).session(session);
 
     if (cart) {
       // Handle items of cart if products updated or deleted
-      handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+      filterAndUpdateCartItems(cart);
 
       // Find the index of the product in the cart using productId and size
       const productIndex = cart.cartItems.findIndex(
@@ -506,10 +555,7 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
           const updatedSizes = cartItem.product.sizes.map((item) => ({
             ...item.toObject(),
             // Increase the quantity only for the size matching the cart item; keep others unchanged
-            quantity:
-              item.size === size
-                ? item.quantity + cartItem.quantity
-                : item.quantity,
+            quantity: item.size === size ? item.quantity + cartItem.quantity : item.quantity,
           }));
 
           // Update the product document in the database with the modified sizes array
@@ -524,13 +570,19 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
         }
       }
 
-      // Add ID of Redis BullMQ job to jobId to delete job later
+      // Add ID of Redis BullMQ job to redisBullMQJobId to remove job later
       if (cart.cartItems.length === 0 && cart?.idOfRedisBullMqJob) {
-        jobId = cart?.idOfRedisBullMqJob;
+        redisBullMQJobId = cart.idOfRedisBullMqJob;
+      }
+
+      // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+      if (cart?.idOfStripeCheckoutSession) {
+        stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
+        cart.idOfStripeCheckoutSession = undefined;
       }
 
       // Recalculate the total cart price after updates
-      await calcTotalCartPrice(cart, session);
+      await calculateAndUpdateCartPricing(cart, session);
 
       // Commit the transaction to save all changes to the database
       await session.commitTransaction();
@@ -545,10 +597,10 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
   }
 
   // Remove Redis BullMQ job
-  if (jobId) {
-    const job = await cartQueue.getJob(jobId);
-    if (job) await job.remove();
-  }
+  await removeRedisBullMQJob(redisBullMQJobId);
+
+  // Expire Stripe session if exists
+  await expireStripeSession(stripeCheckOutSessionId);
 
   if (cart) {
     // Fetch the updated cart from the database
@@ -576,7 +628,9 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
   session.startTransaction();
 
   let cart;
-  let jobId;
+  let redisBullMQJobId;
+  let stripeCheckOutSessionId;
+
   try {
     // Find the user's cart in the database
     cart = await cartModel.findOne({ user: req.user._id }).session(session);
@@ -656,13 +710,18 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
       // Clear all items from the cart
       cart.cartItems = [];
 
-      // Add ID of Redis BullMQ job to jobId to delete job later
+      // Add ID of Redis BullMQ job to redisBullMQJobId to remove job later
       if (cart?.idOfRedisBullMqJob) {
-        jobId = cart?.idOfRedisBullMqJob;
+        redisBullMQJobId = cart.idOfRedisBullMqJob;
+      }
+
+      // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+      if (cart?.idOfStripeCheckoutSession) {
+        stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
       }
 
       // Recalculate the total cart price after updates
-      await calcTotalCartPrice(cart, session);
+      await calculateAndUpdateCartPricing(cart, session);
 
       // Commit the transaction to save all changes to the database
       await session.commitTransaction();
@@ -677,10 +736,10 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
   }
 
   // Remove Redis BullMQ job
-  if (jobId) {
-    const job = await cartQueue.getJob(jobId);
-    if (job) await job.remove();
-  }
+  await removeRedisBullMQJob(redisBullMQJobId);
+
+  // Expire Stripe session if exists
+  await expireStripeSession(stripeCheckOutSessionId);
 
   if (!cart) {
     // If no cart exists, create a new cart for the user
@@ -709,9 +768,11 @@ exports.applyCoupon = asyncHandler(async (req, res) => {
   // Retrieve the user's cart
   let cart = await cartModel.findOne({ user: req.user._id });
 
+  let stripeCheckOutSessionId;
+
   if (cart) {
     // Handle items of cart if products updated or deleted
-    handleItemsOfCartIfProductsUpdatedOrDeleted(cart);
+    filterAndUpdateCartItems(cart);
 
     // Add coupon details to cart
     if (cart.cartItems.length > 0 && coupon) {
@@ -722,12 +783,21 @@ exports.applyCoupon = asyncHandler(async (req, res) => {
       }
     }
 
+    // Add Stripe checkout session ID to atripeCheckOutSessionId to expire session later
+    if (cart?.idOfStripeCheckoutSession) {
+      stripeCheckOutSessionId = cart.idOfStripeCheckoutSession;
+      cart.idOfStripeCheckoutSession = undefined;
+    }
+
     // Calculate the current total price of the cart
-    await calcTotalCartPrice(cart);
+    await calculateAndUpdateCartPricing(cart);
   } else {
     // If no cart exists, create a new cart for the user
     cart = await cartModel.create({ user: req.user._id, cartItems: [] });
   }
+
+  // Expire Stripe session if exists
+  await expireStripeSession(stripeCheckOutSessionId);
 
   // Send the response with the updated cart information
   res.status(200).json({
