@@ -5,6 +5,7 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const ApiError = require("../utils/apiErrore");
 const cartModel = require("../models/cartModel");
 const orderModel = require("../models/orderModel");
+const productModel = require("../models/productModel");
 const { getAll } = require("./handlersFactory");
 const {
   calculateAndUpdateCartPricing,
@@ -12,6 +13,21 @@ const {
   removeRedisBullMQJob,
   expireStripeSession
 } = require("../utils/shoppingCartUtilitiesfunctions");
+
+// Update the sold quantity of the products
+const updateSoldQuantity = async (cart, productModel, session) => {
+  const bulkOps = cart.cartItems.map((cartItem) => {
+      return {
+          updateOne: {
+              filter: { _id: cartItem.product._id },
+              update: { $inc: { sold: cartItem.quantity } }, // Increment the sold quantity
+              timestamps: false, // Disable automatic timestamps
+          },
+      };
+  });
+
+  await productModel.bulkWrite(bulkOps, { session });
+};
 
 // @desc    Create a cash order
 // @route   POST /api/v1/orders/createcashorder
@@ -67,6 +83,9 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
       ],
       { session }
     ))[0]; // Access the first element of the array
+
+    // Update the sold quantity of the products
+    await updateSoldQuantity(cart, productModel, session);
 
     // Clear shopping cart items
     cart.cartItems = [];
@@ -249,13 +268,13 @@ exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
   // Handle the event
   switch (event.type) {
     case "checkout.session.completed":
-      const session = event.data.object;
+      const paymentIntentSucceeded = event.data.object;
 
       // Extract metadata from the session
-      const cartId = session.metadata.cartId;
-      const userId = session.metadata.userId;
-      const phone = session.metadata.phone;
-      const shippingAddress = JSON.parse(session.metadata.shippingAddress);
+      const cartId = paymentIntentSucceeded.metadata.cartId;
+      const userId = paymentIntentSucceeded.metadata.userId;
+      const phone = paymentIntentSucceeded.metadata.phone;
+      const shippingAddress = JSON.parse(paymentIntentSucceeded.metadata.shippingAddress);
 
       // Fetch the shopping cart from the database
       const cart = await cartModel.findById(cartId);
@@ -263,27 +282,53 @@ exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
         return next(new ApiError(`No shopping cart for this ID: ${cartId}.`, 404));
       }
 
-      // Create order
-      await orderModel.create({
-        user: userId,
-        orderItems: cart.cartItems,
-        pricing: cart.pricing,
-        coupon: cart.coupon,
-        paymentMethod: "credit_card",
-        paymentStatus: "completed",
-        paidAt: new Date(),
-        phone,
-        shippingAddress,
-      });
+      // Start a Mongoose session to allow for transactions
+      const session = await mongoose.startSession();
+      session.startTransaction();
 
-      // Clear shopping cart items
-      cart.cartItems = [];
+      try {
+        // Create order
+        (
+          await orderModel.create(
+            [
+              {
+                user: userId,
+                orderItems: cart.cartItems,
+                pricing: cart.pricing,
+                coupon: cart.coupon,
+                paymentMethod: "credit_card",
+                paymentStatus: "completed",
+                paidAt: new Date(),
+                phone,
+                shippingAddress,
+              },
+            ],
+            { session }
+          )
+        )[0]; // Access the first element of the array
 
-      // Remove Redis BullMQ job
-      await removeRedisBullMQJob(cart?.idOfRedisBullMqJob);
+        // Update the sold quantity of the products
+        await updateSoldQuantity(cart, productModel, session);
 
-      // Calculate and update the total cart price
-      await calculateAndUpdateCartPricing(cart);
+        // Clear shopping cart items
+        cart.cartItems = [];
+
+        // Remove Redis BullMQ job
+        await removeRedisBullMQJob(cart?.idOfRedisBullMqJob);
+
+        // Calculate and update the total cart price
+        await calculateAndUpdateCartPricing(cart, session);
+
+        // Commit the transaction to save all changes to the database
+        await session.commitTransaction();
+      } catch (error) {
+        // If an error occurs, abort the transaction to prevent any changes from being saved
+        await session.abortTransaction();
+        return next(new ApiError("Something went wrong. Please try again.", 500));
+      } finally {
+        // End the session whether the transaction succeeds or fails
+        session.endSession();
+      }
 
       console.log("Checkout session completed:", session.id);
       break;
