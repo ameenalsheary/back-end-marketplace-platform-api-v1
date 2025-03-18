@@ -6,6 +6,7 @@ const ApiError = require("../utils/apiErrore");
 const cartModel = require("../models/cartModel");
 const orderModel = require("../models/orderModel");
 const productModel = require("../models/productModel");
+const userModel = require("../models/userModel");
 const { getAll } = require("./handlersFactory");
 const {
   calculateAndUpdateCartPricing,
@@ -29,12 +30,24 @@ const updateSoldQuantity = async (cart, productModel, session) => {
   await productModel.bulkWrite(bulkOps, { session });
 };
 
+// Add address to user's addresses list
+const addAddressToUser = async (userModel, userId, address) => {
+  try {
+    await userModel.findByIdAndUpdate(userId, {
+      $addToSet: { addressesList: address },
+    });
+  } catch {
+    // Do nothing
+  }
+};
+
 // @desc    Create a cash order
 // @route   POST /api/v1/orders/createcashorder
 // @access  Pravite
 exports.createCashOrder = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
   const { phone, country, state, city, street, postalCode } = req.body;
+  const address = { country, state, city, street, postalCode };
 
   // Fetch the shopping cart from the database
   const cart = await cartModel.findOne({ user: userId });
@@ -72,13 +85,7 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
           coupon: cart.coupon,
           paymentMethod: "cash_on_delivery",
           phone,
-          shippingAddress: {
-            country,
-            state,
-            city,
-            street,
-            postalCode,
-          },
+          shippingAddress: address
         },
       ],
       { session }
@@ -86,6 +93,11 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
 
     // Update the sold quantity of the products
     await updateSoldQuantity(cart, productModel, session);
+
+    // Add address to user's addresses list
+    if (req.user.addressesList.length === 0) {
+      await addAddressToUser(userModel, userId, address);
+    }
 
     // Clear shopping cart items
     cart.cartItems = [];
@@ -309,6 +321,12 @@ exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
 
         // Update the sold quantity of the products
         await updateSoldQuantity(cart, productModel, session);
+
+        // Add address to user's addresses list
+        const user = await userModel.findById(userId);
+        if (user.addressesList.length === 0) {
+          await addAddressToUser(userModel, userId, shippingAddress);
+        }
 
         // Clear shopping cart items
         cart.cartItems = [];

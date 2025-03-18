@@ -28,10 +28,7 @@ exports.protect = (emailVerification = false) =>
     const currentUser = await userModel.findById(decoded.userId);
     if (!currentUser) {
       return next(
-        new ApiError(
-          "The user associated with this token no longer exists.",
-          401
-        )
+        new ApiError("The user associated with this token no longer exists.", 401)
       );
     }
 
@@ -39,10 +36,7 @@ exports.protect = (emailVerification = false) =>
     if (!emailVerification) {
       if (!currentUser.emailVerification) {
         return next(
-          new ApiError(
-            "Your email is not verified. Please verify your email to proceed.",
-            403
-          )
+          new ApiError("Your email is not verified. Please verify your email to proceed.", 403)
         );
       }
     }
@@ -50,10 +44,7 @@ exports.protect = (emailVerification = false) =>
     // 5) Check user if block
     if (currentUser.userBlock) {
       return next(
-        new ApiError(
-          "Your account has been blocked. Please contact support for further assistance.",
-          401
-        )
+        new ApiError("Your account has been blocked. Please contact support for further assistance.", 401)
       );
     }
 
@@ -66,10 +57,7 @@ exports.protect = (emailVerification = false) =>
       // Password changed after token created (Error)
       if (passChangedTimestamp > decoded.iat) {
         return next(
-          new ApiError(
-            "Your password was recently changed. Please log in again.",
-            401
-          )
+          new ApiError("Your password was recently changed. Please log in again.", 401)
         );
       }
     }
