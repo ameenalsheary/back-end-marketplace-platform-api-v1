@@ -231,34 +231,50 @@ exports.updateMyData = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/users/addresses
 // @access  Private
 exports.getMyAddresses = asyncHandler(async (req, res) => {
-  const user = await userModel.findById(req.user._id);
+  const userId = req.user._id;
+  const user = await userModel.findById(userId);
+
+  const addressesList = user.addressesList.reverse();
   res.status(200).json({
     status: "Success",
     message: "List addresses retrieved successfully.",
-    data: user.addressesList,
+    data: addressesList,
   });
 });
 
 // @desc    Add address to my addresses list.
 // @route   POST /api/v1/users/addresses
 // @access  Private
-exports.addMyAddress = asyncHandler(async (req, res, next) => {
-  const checkListLength = await userModel.findById(req.user._id);
-  const max = 8;
-  if (checkListLength.addressesList.length > max) {
-    throw next(new ApiError(`You cannot create more than ${max} addresses.`, 403));
+exports.addMyAddress = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const user = await userModel.findById(userId);
+  const addressesList = user.addressesList;
+  const MAX_ADDRESSES = 8;
+
+  // If length of addressesList is equal to MAX_ADDRESSES delete the oldest address
+  if (addressesList.length === MAX_ADDRESSES) {
+    const oldestAddressId = user.addressesList[0]._id;
+    await userModel.findByIdAndUpdate(userId, {
+      $pull: { addressesList: { _id: oldestAddressId } },
+    });
   }
-  const user = await userModel.findByIdAndUpdate(
-    req.user._id,
+
+  // Add new address to addressesList
+  const newAddress = req.body;
+  const updatedUser = await userModel.findByIdAndUpdate(
+    userId,
     {
-      $addToSet: { addressesList: req.body },
+      $addToSet: { addressesList: newAddress },
     },
     { new: true }
   );
+
+  const newAddressesList = updatedUser.addressesList.reverse();
   res.status(200).json({
     status: "Success",
     message: "Address added successfully to your addresses list.",
-    data: user.addressesList,
+    data: newAddressesList,
   });
 });
 
@@ -266,17 +282,20 @@ exports.addMyAddress = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/v1/users/addresses/:addressId
 // @access  Private
 exports.removeMyAddress = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
   const user = await userModel.findByIdAndUpdate(
-    req.user._id,
+    userId,
     {
       $pull: { addressesList: { _id: req.params.addressId } },
     },
     { new: true }
   );
+
+  const newAddressesList = user.addressesList.reverse();
   res.status(200).json({
     status: "Success",
     message: "Address removed successfully from your addresses list.",
-    data: user.addressesList,
+    data: newAddressesList,
   });
 });
 
