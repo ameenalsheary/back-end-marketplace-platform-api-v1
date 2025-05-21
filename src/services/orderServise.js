@@ -256,7 +256,7 @@ exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
   // Send the session ID to the frontend
   res.status(200).json({
     status: "Success",
-    sessionId: checkoutSession,
+    sessionUrl: checkoutSession.url,
   });
 });
 
