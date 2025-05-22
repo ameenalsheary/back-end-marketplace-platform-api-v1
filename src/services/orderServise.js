@@ -30,14 +30,44 @@ const updateSoldQuantity = async (cart, productModel, session) => {
   await productModel.bulkWrite(bulkOps, { session });
 };
 
-// Add address to user's addresses list
-const addAddressToUser = async (userModel, userId, address) => {
-  try {
-    await userModel.findByIdAndUpdate(userId, {
-      $addToSet: { addressesList: address },
-    });
-  } catch {
-    // Do nothing
+// Add address if it doesn't exist in the user's addresses list and manage the limit
+const addAddressIfUniqueAndManageLimit = async (model, userId, address) => {
+  const { country, state, city, street, postalCode } = address;
+
+  // Step 1: Find the user by their ID
+  const user = await model.findById(userId);
+
+  // Step 2: Check if the address already exists in the user's addresses list
+  const exists = user.addressesList.some((addr) => {
+    return (
+      addr.country === country &&
+      addr.state === state &&
+      addr.city === city &&
+      addr.street === street &&
+      addr.postalCode === postalCode
+    );
+  });
+
+  // Step 3: If the address is new, proceed to add it
+  if (!exists) {
+    const MAX_ADDRESSES = 8;
+
+    // Step 4: If the user has reached the max number of saved addresses, remove the oldest one
+    if (user.addressesList.length >= MAX_ADDRESSES) {
+      const oldestAddressId = user.addressesList[0]._id;
+      await model.findByIdAndUpdate(userId, {
+        $pull: { addressesList: { _id: oldestAddressId } },
+      });
+    }
+
+    // Step 5: Add the new address to the addresses list
+    await model.findByIdAndUpdate(
+      userId,
+      {
+        $push: { addressesList: address },
+      },
+      { new: true }
+    );
   }
 };
 
@@ -94,10 +124,8 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
     // Update the sold quantity of the products
     await updateSoldQuantity(cart, productModel, session);
 
-    // Add address to user's addresses list
-    if (req.user.addressesList.length === 0) {
-      await addAddressToUser(userModel, userId, address);
-    }
+    // Add address if it doesn't exist in the user's addresses list and manage the limit
+    addAddressIfUniqueAndManageLimit(userModel, userId, address);
 
     // Clear shopping cart items
     cart.cartItems = [];
@@ -322,11 +350,8 @@ exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
         // Update the sold quantity of the products
         await updateSoldQuantity(cart, productModel, session);
 
-        // Add address to user's addresses list
-        const user = await userModel.findById(userId);
-        if (user.addressesList.length === 0) {
-          await addAddressToUser(userModel, userId, shippingAddress);
-        }
+        // Add address if it doesn't exist in the user's addresses list and manage the limit
+        addAddressIfUniqueAndManageLimit(userModel, userId, address);
 
         // Clear shopping cart items
         cart.cartItems = [];
