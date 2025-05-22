@@ -351,7 +351,7 @@ exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
         await updateSoldQuantity(cart, productModel, session);
 
         // Add address if it doesn't exist in the user's addresses list and manage the limit
-        addAddressIfUniqueAndManageLimit(userModel, userId, address);
+        addAddressIfUniqueAndManageLimit(userModel, userId, shippingAddress);
 
         // Clear shopping cart items
         cart.cartItems = [];
