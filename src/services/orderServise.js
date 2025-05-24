@@ -284,7 +284,9 @@ exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
   // Send the session ID to the frontend
   res.status(200).json({
     status: "Success",
-    sessionUrl: checkoutSession.url,
+    message: "Stripe checkout session created successfully.",
+    sessionID: checkoutSession.id,
+    sessionURL: checkoutSession.url,
   });
 });
 
