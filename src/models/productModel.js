@@ -66,6 +66,13 @@ const productSchema = new mongoose.Schema(
         trim: true,
       },
     ],
+    size: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      min: [1, "Size product size must be at least 1 characters."],
+      max: [8, "Size product size cannot exceed 8 characters."],
+    },
     quantity: {
       type: Number,
       min: [1, "Product quantity must be between 1 and 1000."],
@@ -183,6 +190,7 @@ const showSmallestPriceSize = function (update) {
     update.price = theSmallestPriceSize.price ?? "";
     update.priceBeforeDiscount = theSmallestPriceSize.priceBeforeDiscount ?? "";
     update.discountPercent = theSmallestPriceSize.discountPercent ?? "";
+    update.size = theSmallestPriceSize.size ?? "";
     update.quantity = theSmallestPriceSize.quantity ?? "";
   }
 };

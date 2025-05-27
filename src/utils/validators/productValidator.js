@@ -165,6 +165,7 @@ exports.createProductValidator = [
     // Properties that cannot be entered by the user
     .custom((_, { req }) => {
       req.body.group = undefined;
+      req.body.size = undefined;
       return true;
     }),
 
@@ -439,6 +440,7 @@ exports.updateProductValidator = [
     // Properties that cannot be entered by the user
     .custom((_, { req }) => {
       req.body.group = undefined;
+      req.body.size = undefined;
       return true;
     }),
 

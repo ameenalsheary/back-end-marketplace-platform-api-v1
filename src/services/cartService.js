@@ -291,6 +291,7 @@ const worker = new Worker(
                   price: theSmallestPriceSize.price ?? "",
                   priceBeforeDiscount: theSmallestPriceSize.priceBeforeDiscount ?? "",
                   discountPercent: theSmallestPriceSize.discountPercent ?? "",
+                  size: theSmallestPriceSize.size ?? "",
                   quantity: theSmallestPriceSize.quantity ?? "",
                 },
                 timestamps: false
@@ -696,6 +697,7 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
                 price: theSmallestPriceSize.price ?? "",
                 priceBeforeDiscount: theSmallestPriceSize.priceBeforeDiscount ?? "",
                 discountPercent: theSmallestPriceSize.discountPercent ?? "",
+                size: theSmallestPriceSize.size ?? "",
                 quantity: theSmallestPriceSize.quantity ?? "",
               },
               timestamps: false
