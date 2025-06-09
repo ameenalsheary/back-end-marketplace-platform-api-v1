@@ -91,7 +91,7 @@ exports.addProductToCustomerFavoritesValidator = [
         productId: val,
       });
       if (wishList) {
-        throw new Error(`This product is already in your favorites.`);
+        throw new Error(`This product is already in favorites.`);
       };
       return true;
     }),
@@ -177,7 +177,7 @@ exports.changeCustomerPasswordValidator = [
     .notEmpty()
     .withMessage("New password is required.")
     .isString()
-    .withMessage("Naw password must be of type string.")
+    .withMessage("New password must be of type string.")
     .isLength({ min: 8 })
     .withMessage("New password should be at least 8 characters long."),
 
@@ -188,7 +188,7 @@ exports.changeCustomerPasswordValidator = [
     .withMessage("Confirm new password must be of type string.")
     .custom((value, { req }) => {
       if (value !== req.body.newPassword) {
-        throw new Error("Confirm new password dose not match new password.");
+        throw new Error("Confirm new password doesn't match new password.");
       }
       return true;
     }),
@@ -221,7 +221,7 @@ exports.changeCustomerEmailValidator = [
     .withMessage("Please provide a valid confirm new email address.")
     .custom((value, { req }) => {
       if (value !== req.body.newEmail) {
-        throw new Error("Confirm new email dose not match new email.");
+        throw new Error("Confirm new email does not match new email.");
       }
       return true;
     }),
