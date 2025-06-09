@@ -63,8 +63,8 @@ const userSchema = new mongoose.Schema(
     passwordResetExpires: Date,
     role: {
       type: String,
-      enum: ["user", "manager", "admin"],
-      default: "user",
+      enum: ["customer", "admin"],
+      default: "customer",
     },
     active: {
       type: Boolean,

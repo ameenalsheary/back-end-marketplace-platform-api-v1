@@ -31,7 +31,7 @@ router.route("/")
     getCategories
   ).post(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadCategoryImage,
     createCategoryValidator,
     resizeImage,
@@ -46,7 +46,7 @@ router
     getCategory
   ).put(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadCategoryImage,
     updateCategoryValidator,
     resizeImage,

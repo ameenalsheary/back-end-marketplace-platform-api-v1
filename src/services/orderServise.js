@@ -71,10 +71,20 @@ const addAddressIfUniqueAndManageLimit = async (model, userId, address) => {
   }
 };
 
-// @desc    Create a cash order
-// @route   POST /api/v1/orders/createcashorder
+// @desc    Get Customer Orders
+// @route   POST /api/v1/customer/orders
 // @access  Pravite
-exports.createCashOrder = asyncHandler(async (req, res, next) => {
+exports.filterOrders = asyncHandler(async (req, _, next) => {
+  req.filterObj = { user: req.user._id };
+  next();
+});
+
+exports.getCustomerOrders = getAll(orderModel);
+
+// @desc    Customer create a cash order
+// @route   POST /api/v1/customer/orders/cash-on-delivery
+// @access  Pravite
+exports.customerCreateCashOrder = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
   const { phone, country, state, city, street, postalCode } = req.body;
   const address = { country, state, city, street, postalCode };
@@ -170,10 +180,10 @@ exports.createCashOrder = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Create a Stripe Checkout Session
-// @route   POST /api/v1/orders/createcheckoutsession
+// @desc    Customer create Stripe Checkout Session
+// @route   POST /api/v1/customer/orders/stripe-checkout-session
 // @access  Private
-exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
+exports.customerCreateStripeCheckoutSession = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
   const { phone, country, state, city, street, postalCode } = req.body;
 
@@ -224,28 +234,28 @@ exports.createCheckoutSession = asyncHandler(async (req, res, next) => {
   }));
 
   // Add tax and shipping as line items (optional)
-  if (cart.taxPrice > 0) {
+  if (cart.pricing.taxPrice > 0) {
     lineItems.push({
       price_data: {
         currency: 'usd',
         product_data: {
           name: 'Tax',
         },
-        unit_amount: Math.round(cart.taxPrice * 100), // Convert to cents
+        unit_amount: Math.round(cart.pricing.taxPrice * 100), // Convert to cents
       },
       quantity: 1,
     });
   }
 
   // Add shipping as line item (optional)
-  if (cart.shippingPrice > 0) {
+  if (cart.pricing.shippingPrice > 0) {
     lineItems.push({
       price_data: {
         currency: 'usd',
         product_data: {
           name: 'Shipping',
         },
-        unit_amount: Math.round(cart.shippingPrice * 100), // Convert to cents
+        unit_amount: Math.round(cart.pricing.shippingPrice * 100), // Convert to cents
       },
       quantity: 1,
     });
@@ -401,13 +411,3 @@ exports.handleStripeWebhook = asyncHandler(async (req, res, next) => {
   // Return a response to acknowledge receipt of the event
   res.status(200).json({ received: true });
 });
-
-// @desc    Get my orders
-// @route   POST /api/v1/orders
-// @access  Pravite
-exports.filterOrders = asyncHandler(async (req, _, next) => {
-  req.filterObj = { user: req.user._id };
-  next();
-});
-
-exports.getMyOrders = getAll(orderModel);

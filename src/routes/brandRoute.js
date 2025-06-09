@@ -26,7 +26,7 @@ router
     getBrands
   ).post(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadBrandImage,
     createBrandValidator,    
     resizeImage,
@@ -41,7 +41,7 @@ router
     getBrand
   ).put(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadBrandImage,
     updateBrandValidator,
     resizeImage,

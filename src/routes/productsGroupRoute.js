@@ -24,7 +24,7 @@ const router = express.Router();
 
 router.use(
   protect_allowedTo.protect(),
-  protect_allowedTo.allowedTo("admin", "manager"),
+  protect_allowedTo.allowedTo("admin"),
 );
 
 router

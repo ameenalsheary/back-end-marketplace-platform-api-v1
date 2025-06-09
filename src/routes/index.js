@@ -5,13 +5,11 @@ const brandRoutes = require("./brandRoute");
 const productRoutes = require("./productRoute");
 const productsGroupRoute = require("./productsGroupRoute");
 const userRoutes = require("./userRoute");
-const authRoutes = require("./authRoute");
-const reviewRoutes = require("./reviewRoute");
-const savetRoutes = require("./saveRoute");
 const couponRoutes = require("./couponRoute");
-const cartRoutes = require("./cartRoute");
-const orderRoutes = require("./orderRoute");
 const appSettingsRoutes = require("./appSettingsRoute");
+const authRoutes = require("./authRoute");
+const customerRoute = require("./customerRoute");
+// const reviewRoutes = require("./reviewRoute");
 
 const mountRoutes = (app) => {
   app.use(`/api/v1/categories`, categoryRoutes);
@@ -21,13 +19,11 @@ const mountRoutes = (app) => {
   app.use(`/api/v1/products`, productRoutes);
   app.use(`/api/v1/productsgroups`, productsGroupRoute);
   app.use(`/api/v1/users`, userRoutes);
-  app.use(`/api/v1/auth`, authRoutes);
-  app.use(`/api/v1/reviews`, reviewRoutes);
-  app.use(`/api/v1/saves`, savetRoutes);
   app.use(`/api/v1/coupons`, couponRoutes);
-  app.use(`/api/v1/shoppingcart`, cartRoutes);
-  app.use(`/api/v1/orders`, orderRoutes);
   app.use(`/api/v1/appsettings`, appSettingsRoutes);
+  app.use(`/api/v1/auth`, authRoutes);
+  app.use(`/api/v1/customer`, customerRoute);
+  // app.use(`/api/v1/reviews`, reviewRoutes);
 };
 
 module.exports = mountRoutes;

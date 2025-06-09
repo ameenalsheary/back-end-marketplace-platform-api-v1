@@ -164,13 +164,6 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-// mongoose virtual populate
-productSchema.virtual("saves", {
-  ref: "Save",
-  foreignField: "productId",
-  localField: "_id",
-});
-
 // mongoose query middleware
 productSchema.pre("findOne", function (next) {
   this.populate({

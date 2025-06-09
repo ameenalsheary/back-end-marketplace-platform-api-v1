@@ -29,7 +29,7 @@ router
     getReviews
   ).post(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("user", "admin", "manager"),
+    protect_allowedTo.allowedTo("admin", "customer"),
     setProductIdAndUserIdToBody,
     createReviewValidator,
     createReview
@@ -43,13 +43,13 @@ router
   )
   .put(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("user", "admin", "manager"),
+    protect_allowedTo.allowedTo("admin", "customer"),
     updateReviewValidator,
     updateReview
   )
   .delete(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("user", "admin", "manager"),
+    protect_allowedTo.allowedTo("admin", "customer"),
     deleteReviewValidator,
     deleteReview
   );

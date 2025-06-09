@@ -35,7 +35,7 @@ router
     getProducts
   ).post(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadProductImages,
     createProductValidator,    
     resizeProductImages,
@@ -50,7 +50,7 @@ router
     getProduct
   ).put(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadProductImages,
     updateProductValidator,
     resizeProductImages,

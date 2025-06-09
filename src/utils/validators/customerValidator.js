@@ -1,20 +1,12 @@
 const { check } = require("express-validator");
-const validatorMiddleware = require("../../../middlewares/validatorMiddleware");
+const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 const slugify = require("slugify");
 
-const userModel = require("../../../models/userModel");
+const userModel = require("../../models/userModel");
+const productModel = require("../../models/productModel");
+const favoriteModel = require("../../models/favoriteModel");
 
-exports.emailVerificationCodeValidator = [
-  check("emailVerificationCode")
-    .notEmpty()
-    .withMessage("Email verification code is required.")
-    .isString()
-    .withMessage("Email verification code must be of type string."),
-
-  validatorMiddleware,
-];
-
-exports.updateMyDataValidator = [
+exports.updateCustomerDetailsValidator = [
   check("firstName")
     .optional()
     .isString()
@@ -75,7 +67,46 @@ exports.updateMyDataValidator = [
   validatorMiddleware,
 ];
 
-exports.addMyAddressValidator = [
+exports.verifyEmailValidator = [
+  check("emailVerificationCode")
+    .notEmpty()
+    .withMessage("Email verification code is required.")
+    .isString()
+    .withMessage("Email verification code must be of type string."),
+
+  validatorMiddleware,
+];
+
+exports.addProductToCustomerFavoritesValidator = [
+  check("productId")
+    .isMongoId()
+    .withMessage(`Invalid product ID format.`)
+    .custom(async (val, { req }) => {
+      const product = await productModel.findById(val);
+      if (!product) {
+        throw new Error(`No product for this ID ${val}.`);
+      };
+      const wishList = await favoriteModel.findOne({
+        userId: req.user._id,
+        productId: val,
+      });
+      if (wishList) {
+        throw new Error(`This product is already in your favorites.`);
+      };
+      return true;
+    }),
+  validatorMiddleware,
+];
+
+exports.removeProductFromCustomerFavoritesValidator = [
+  check("productId")
+    .isMongoId()
+    .withMessage(`Invalid product ID format.`),
+
+  validatorMiddleware,
+];
+
+exports.addAddressToCustomerAddressesListValidator = [
   check('country')
     .notEmpty()
     .withMessage('Country is required.')
@@ -127,15 +158,15 @@ exports.addMyAddressValidator = [
   validatorMiddleware,
 ];
 
-exports.removeMyAddressValidator = [
+exports.deleteAddressFromCustomerAddressesListValidator = [
     check("addressId")
     .isMongoId()
-    .withMessage("Invalid address id format."),
+    .withMessage("Invalid address ID format."),
 
   validatorMiddleware,
 ];
 
-exports.changeMyPasswordValidator = [
+exports.changeCustomerPasswordValidator = [
   check("currentPassword")
     .notEmpty()
     .withMessage("Current password is required.")
@@ -150,14 +181,14 @@ exports.changeMyPasswordValidator = [
     .isLength({ min: 8 })
     .withMessage("New password should be at least 8 characters long."),
 
-  check("newPasswordConfirm")
+  check("confirmNewPassword")
     .notEmpty()
-    .withMessage("New password confirm is required.")
+    .withMessage("Confirm new password is required.")
     .isString()
-    .withMessage("New password confirm must be of type string.")
+    .withMessage("Confirm new password must be of type string.")
     .custom((value, { req }) => {
       if (value !== req.body.newPassword) {
-        throw new Error("New password confirm dose not match new password.");
+        throw new Error("Confirm new password dose not match new password.");
       }
       return true;
     }),
@@ -165,7 +196,7 @@ exports.changeMyPasswordValidator = [
   validatorMiddleware,
 ];
 
-exports.changeMyEmailValidator = [
+exports.changeCustomerEmailValidator = [
   check("newEmail")
     .notEmpty()
     .withMessage("New email is required.")
@@ -176,7 +207,7 @@ exports.changeMyEmailValidator = [
     .custom(async (val) => {
       const user = await userModel.findOne({ email: val });
       if (user) {
-        throw new Error("E-mail already in user.");
+        throw new Error("Email already exists, please provide a different email address.");
       }
       return true;
     }),

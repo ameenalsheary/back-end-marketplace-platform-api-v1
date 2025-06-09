@@ -1,14 +1,14 @@
 const { PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const s3Client = require('../../config/s3Client');
+const s3Client = require('../config/s3Client');
 const sharp = require("sharp");
 const asyncHandler = require("express-async-handler");
 const { v4: uuidv4 } = require("uuid");
 
-const userModel = require("../../models/userModel");
-const ApiError = require("../../utils/apiErrore");
-const {getAll, createOne } = require("../handlersFactory");
-const { uploadMultipleImages } = require("../../middlewares/uploadImageMiddleware");
-const { userPropertysPrivate } = require("../../utils/propertysPrivate");
+const userModel = require("../models/userModel");
+const ApiError = require("../utils/apiErrore");
+const {getAll, createOne } = require("./handlersFactory");
+const { uploadMultipleImages } = require("../middlewares/uploadImageMiddleware");
+const { userPropertysPrivate } = require("../utils/propertysPrivate");
 
 const awsBuckName = process.env.AWS_BUCKET_NAME;
 

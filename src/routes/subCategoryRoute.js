@@ -37,7 +37,7 @@ router
     getSubCategories
   ).post(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadSubCategoryImage,
     setCategoryIdToBody,
     createSubCategoryValidator,
@@ -53,7 +53,7 @@ router
     getSubCategory
   ).put(
     protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("admin", "manager"),
+    protect_allowedTo.allowedTo("admin"),
     uploadSubCategoryImage,
     updateSubCategoryValidator,
     resizeImage,

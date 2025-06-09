@@ -1,19 +1,104 @@
 const crypto = require("crypto");
 
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const s3Client = require("../../config/s3Client");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
 
-const userModel = require("../../models/userModel");
-const createToken = require("../../utils/createToken");
-const sendEmail = require("../../utils/sendEmail");
-const ApiError = require("../../utils/apiErrore");
-const { userPropertysPrivate } = require("../../utils/propertysPrivate");
+const userModel = require("../models/userModel");
+const favoriteModel = require("../models/favoriteModel");
+const s3Client = require("../config/s3Client");
+const { getAll } = require("./handlersFactory");
+const createToken = require("../utils/createToken");
+const sendEmail = require("../utils/sendEmail");
+const ApiError = require("../utils/apiErrore");
+const { userPropertysPrivate } = require("../utils/propertysPrivate");
 
-// @desc    Email verify
-// @route   POST /api/v1/auth/emailverify
-// @access  User logged in
+// @desc Get customer details
+// @route GET /api/v1/customer
+// @access Private
+exports.getCustomerDetails = asyncHandler(async (req, res) => {
+  const id = req.user._id;
+  const document = await userModel.findById(id);
+  const user = userPropertysPrivate(document);
+  res.status(200).json({ data: user });
+});
+
+// @desc Update customer details
+// @route PUT /api/v1/customer
+// @access Private
+exports.updateCustomerDetails = asyncHandler(async (req, res) => {
+  const id = req.user._id;
+  const body = req.body;
+
+  if (body.profileImage || body.profileCoverImage) {
+    let user = await userModel.findByIdAndUpdate(id, {
+      firstName: body.firstName,
+      lastName: body.lastName,
+      slug: body.slug,
+      phoneNumber: body.phoneNumber,
+      profileImage: body.profileImage,
+      profileCoverImage: body.profileCoverImage,
+    });
+
+    let allUrlsImages = [];
+
+    if (body.profileImage) {
+      allUrlsImages.push(user.profileImage);
+    }
+
+    if (body.profileCoverImage) {
+      allUrlsImages.push(user.profileCoverImage);
+    }
+
+    const keys = allUrlsImages.map((item) => {
+      const imageUrl = `${item}`;
+      const baseUrl = `${process.env.AWS_BASE_URL}/`;
+      const restOfUrl = imageUrl.replace(baseUrl, "");
+      const key = restOfUrl.slice(0, restOfUrl.indexOf("?"));
+      return key;
+    });
+
+    const awsBuckName = process.env.AWS_BUCKET_NAME;
+
+    await Promise.all(
+      keys.map(async (key) => {
+        const params = {
+          Bucket: awsBuckName,
+          Key: key,
+        };
+
+        const command = new DeleteObjectCommand(params);
+        await s3Client.send(command);
+      })
+    );
+
+    user = await userModel.find({ _id: id });
+
+    user = userPropertysPrivate(user[0]);
+
+    res.status(200).json({ data: user });
+  } else {
+    let user = await userModel.findByIdAndUpdate(
+      id,
+      {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        slug: body.slug,
+        phoneNumber: body.phoneNumber,
+      },
+      {
+        new: true,
+      }
+    );
+
+    user = userPropertysPrivate(user);
+    res.status(200).json({ data: user });
+  }
+});
+
+// @desc Email verification
+// @route GET /api/v1/customer/verify-email
+// @access Private
 exports.emailVerification = asyncHandler(async (req, res, next) => {
   // 1) Get user by email
   const user = await userModel.findOne({ email: req.user.email });
@@ -97,10 +182,10 @@ exports.emailVerification = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Email verify code
-// @route   POST /api/v1/auth/emailverifycode
-// @access  User logged in
-exports.emailVerificationCode = asyncHandler(async (req, res, next) => {
+// @desc Verify customer email
+// @route POST /api/v1/customer/verify-email
+// @access Private
+exports.verifyEmail = asyncHandler(async (req, res, next) => {
   // 1) Get user by email
   const user = await userModel.findOne({ email: req.user.email });
 
@@ -137,7 +222,7 @@ exports.emailVerificationCode = asyncHandler(async (req, res, next) => {
       emailVerificationCode: 1,
       emailVerificationCodeExpires: 1,
     },
-  });  
+  });
 
   // 6) Send success response
   res.status(200).json({
@@ -146,106 +231,75 @@ exports.emailVerificationCode = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get my data
-// @route   GET /api/v1/users/mydata
-// @access  user logged in
-exports.getMyData = asyncHandler(async (req, res) => {
-  const id = req.user._id;
-  const document = await userModel.findById(id);
-  const user = userPropertysPrivate(document);
-  res.status(200).json({ data: user });
+// @desc Get customer favorites
+// @route GET /api/v1/customer/favorites
+// @access Private
+exports.createFilterObj = (req, _, next) => {
+  req.filterObj = {
+    userId: req.user._id,
+  };
+  next();
+};
+
+exports.getCustomerFavorites = getAll(favoriteModel);
+
+// @desc Add product to customer favorites
+// @route POST /api/v1/customer/favorites
+// @access Private
+exports.addProductToCustomerFavorites = asyncHandler(async (req, res) => {
+  const productId = req.body.productId;
+
+  const favorite = await favoriteModel.create({
+    userId: req.user._id,
+    productId,
+  });
+
+  res.status(200).json({
+    data: favorite,
+  });
 });
 
-// @desc    Update my data
-// @route   PUT /api/v1/users/updatemydata
-// @access  user logged in
-exports.updateMyData = asyncHandler(async (req, res) => {
-  const id = req.user._id;
-  const body = req.body;
+// @desc Delete product from customer favorites
+// @route DELETE /api/v1/customer/favorites/:productId
+// @access Private
+exports.removeProductFromCustomerFavorites = asyncHandler(async (req, res, next) => {
+  const productId = req.params.productId;
 
-  if (body.profileImage || body.profileCoverImage) {
-    let user = await userModel.findByIdAndUpdate(id, {
-      firstName: body.firstName,
-      lastName: body.lastName,
-      slug: body.slug,
-      phoneNumber: body.phoneNumber,
-      profileImage: body.profileImage,
-      profileCoverImage: body.profileCoverImage,
-    });
+  const favorite = await favoriteModel.findOneAndDelete({
+    userId: req.user._id,
+    productId,
+  });
 
-    let allUrlsImages = [];
-    if (body.profileImage) {
-      allUrlsImages.push(user.profileImage);
-    }
-    if (body.profileCoverImage) {
-      allUrlsImages.push(user.profileCoverImage);
-    }
-
-    const keys = allUrlsImages.map((item) => {
-      const imageUrl = `${item}`;
-      const baseUrl = `${process.env.AWS_BASE_URL}/`;
-      const restOfUrl = imageUrl.replace(baseUrl, "");
-      const key = restOfUrl.slice(0, restOfUrl.indexOf("?"));
-      return key;
-    });
-
-    const awsBuckName = process.env.AWS_BUCKET_NAME;
-
-    await Promise.all(
-      keys.map(async (key) => {
-        const params = {
-          Bucket: awsBuckName,
-          Key: key,
-        };
-
-        const command = new DeleteObjectCommand(params);
-        await s3Client.send(command);
-      })
+  if (!favorite) {
+    return next(
+      new ApiError(`No favorite product for this ID ${productId}.`, 404)
     );
-
-    user = await userModel.find({ _id: id });
-
-    user = userPropertysPrivate(user[0]);
-
-    res.status(200).json({ data: user });
-  } else {
-    let user = await userModel.findByIdAndUpdate(
-      id,
-      {
-        firstName: body.firstName,
-        lastName: body.lastName,
-        slug: body.slug,
-        phoneNumber: body.phoneNumber,
-      },
-      {
-        new: true,
-      }
-    );
-
-    user = userPropertysPrivate(user);
-    res.status(200).json({ data: user });
   }
+
+  res.status(200).json({
+    data: favorite,
+  });
 });
 
-// @desc    Get my addresses.
-// @route   GET /api/v1/users/addresses
-// @access  Private
-exports.getMyAddresses = asyncHandler(async (req, res) => {
+// @desc Get customer addresses list
+// @route GET /api/v1/customer/addresses
+// @access Private
+exports.getCustomerAddressesList = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const user = await userModel.findById(userId);
 
   const addressesList = user.addressesList.reverse();
   res.status(200).json({
     status: "Success",
-    message: "List addresses retrieved successfully.",
+    message: "Your addresses list retrieved successfully.",
     data: addressesList,
   });
 });
 
-// @desc    Add address to my addresses list.
-// @route   POST /api/v1/users/addresses
-// @access  Private
-exports.addMyAddress = asyncHandler(async (req, res) => {
+// @desc Add address to customer addresses list
+// @route POST /api/v1/customer/addresses
+// @access Private
+exports.addAddressToCustomerAddressesList = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const user = await userModel.findById(userId);
@@ -278,10 +332,10 @@ exports.addMyAddress = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Remove address from my addresses list.
-// @route   DELETE /api/v1/users/addresses/:addressId
-// @access  Private
-exports.removeMyAddress = asyncHandler(async (req, res) => {
+// @desc Delete address from customer addresses list
+// @route DELETE /api/v1/customer/addresses/:addressId
+// @access Private
+exports.deleteAddressFromCustomerAddressesList = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const user = await userModel.findByIdAndUpdate(
     userId,
@@ -294,28 +348,32 @@ exports.removeMyAddress = asyncHandler(async (req, res) => {
   const newAddressesList = user.addressesList.reverse();
   res.status(200).json({
     status: "Success",
-    message: "Address removed successfully from your addresses list.",
+    message: "Address deleted successfully from your addresses list.",
     data: newAddressesList,
   });
 });
 
-// @desc    Change my password
-// @route   PUT /api/v1/users/changemypassword
-// @access  user logged in
-exports.changeMyPassword = asyncHandler(async (req, res, next) => {
+// @desc Change customer password
+// @route PUT /api/v1/customer/change-password
+// @access Private
+exports.changeCustomerPassword = asyncHandler(async (req, res, next) => {
   const id = req.user._id;
   const userCheck = await userModel.findById(id);
+
   // Check user exist
   if (!userCheck) {
-    return next(new ApiError(`No user for this id ${id}.`, 404));
+    return next(new ApiError(`No user for this ID ${id}.`, 404));
   }
+
   const isCorrectPassword = await bcrypt.compare(
     req.body.currentPassword,
     userCheck.password
   );
+
   if (!isCorrectPassword) {
-    return next(new ApiError("Incorrect current password.", 401));
+    return next(new ApiError("The current password is incorrect.", 401));
   }
+
   const document = await userModel.findByIdAndUpdate(
     id,
     {
@@ -326,30 +384,39 @@ exports.changeMyPassword = asyncHandler(async (req, res, next) => {
       new: true,
     }
   );
+
   const user = userPropertysPrivate(document);
+
   const token = createToken(user._id);
+
   res.status(200).json({ data: user, token: token });
 });
 
-// @desc    Change my email
-// @route   PUT /api/v1/users/changemyemail
-// @access  user logged in
-exports.changeMyEmail = asyncHandler(async (req, res, next) => {
+// @desc Change customer email
+// @route PUT /api/v1/customer/change-email
+// @access Private
+exports.changeCustomerEmail = asyncHandler(async (req, res, next) => {
   const id = req.user._id;
   const userCheck = await userModel.findById(id);
+
   if (!(await bcrypt.compare(req.body.password, userCheck.password))) {
-    return next(new ApiError("The password is not incorrect.", 401));
+    return next(new ApiError("The password is incorrect.", 401));
   }
+
   const document = await userModel.findByIdAndUpdate(
     id,
     {
       email: req.body.newEmail,
-      emailVerify: false,
+      emailVerification: false,
+      emailVerificationCode: null,
+      emailVerificationCodeExpires: null,
     },
     {
       new: true,
     }
   );
+
   const user = userPropertysPrivate(document);
+
   res.status(200).json({ date: user });
 });

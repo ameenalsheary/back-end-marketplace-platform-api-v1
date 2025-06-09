@@ -11,52 +11,28 @@ const ApiFeatures = require("../utils/apiFeatures");
 const productModel = require("../models/productModel");
 const { checkTheToken } = require('./authServises/protect&allowedTo');
 const reviewModel = require("../models/reviewModel");
-const saveModel = require("../models/saveModel");
+const favoriteModel = require("../models/favoriteModel");
 
 const awsBuckName = process.env.AWS_BUCKET_NAME;
 
-// Function check if user saved product
-const checkIfUserSavedProduct = (products, userId) => {
+/**
+ * Adds isFavorite field to each product based on user's favorites
+ * @param {Array} products - Array of product objects
+ * @param {String} userId - User ID to check favorites against
+ * @returns {Array} - Products with isFavorite field added
+ */
+async function addFavoriteStatusToProducts(products, userId) {
+  const userFavorites = await favoriteModel.find({ userId })
+    .select("productId")
+    .setOptions({ disableAutoPopulate: true });
+  
+  const favoriteProductIds = userFavorites.map((fav) => fav.productId.toString());
 
-  for (let i = 0; i < products.length; i++) {
-
-    // c Can't change original document mongodb
-    let product =  JSON.parse(JSON.stringify(products[i]));
-
-    if (product.saves.length > 0) {
-
-      // Check user if saved product
-      const check = product.saves.some(
-        item => `${item.userId}`.toString() === userId
-      );
-
-      if (check) {
-
-        delete product.saves;
-        product.save = true;
-        products[i] = product;
-
-      } else {
-
-        delete product.saves;
-        product.save = false;
-        products[i] = product;
-
-      };
-
-    } else {
-
-      delete product.saves;
-      product.save = false;
-      products[i] = product;
-
-    };
-
-  };
-
-  return products;
-
-};
+  return products.map((product) => ({
+    ...product,
+    isFavorite: favoriteProductIds.includes(product._id.toString()),
+  }));
+}
 
 // Upload multiple images
 exports.uploadProductImages = uploadMultipleImages([
@@ -146,112 +122,68 @@ exports.resizeProductImages = asyncHandler(async (req, _, next) => {
 // @route   GET /api/v1/products
 // @access  Public
 exports.getProducts = asyncHandler(async (req, res) => {
+  // Build query
+  const apiFeatures = new ApiFeatures(productModel.find({}), req.query)
+    .filter()
+    .sort()
+    .limitFields()
+    .search("Product");
 
-    // Build query
-    const apiFeatures = new ApiFeatures(productModel.find({}), req.query)
-      .filter()
-      .sort()
-      .limitFields()
-      .search('Product')
+  // Clone the query before counting documents
+  const queryForCount = apiFeatures.mongooseQuery.clone();
+  const countDocuments = await queryForCount.countDocuments();
 
-    // Clone the query before counting documents
-    const queryForCount = apiFeatures.mongooseQuery.clone();
-    const countDocuments = await queryForCount.countDocuments();
+  // Apply pagination after getting the count
+  apiFeatures.paginate(countDocuments);
 
-    // Apply pagination after getting the count
-    apiFeatures.paginate(countDocuments);
+  // Get query and pagination from API features  
+  const { mongooseQuery, paginationResults } = apiFeatures;  
+  let products;  
 
-    const { mongooseQuery, paginationResults } = apiFeatures;
-    let products;
+  // Check if user is logged in  
+  const currentUser = await checkTheToken(req);
 
-    if (req.headers.authorization) {
+  if (currentUser._id) {
+    // Get products and check favorites
+    products = JSON.parse(JSON.stringify(await mongooseQuery));  
+    products = await addFavoriteStatusToProducts(products, currentUser._id);
+  } else {  
+    // Get products without favorite check (guest user)  
+    products = await mongooseQuery;  
+  }
 
-      const currentUser = await checkTheToken(req);
-      const userId = `${currentUser._id}`.toString();
-
-      if ( !(userId === "undefined") ) {
-        // Execute Query
-        products = await mongooseQuery.populate({
-          path: "saves",
-          select: "userId -productId -_id"
-        });
-
-        // check if user saved product
-        products = checkIfUserSavedProduct(products, userId);
-      } else {
-        // Execute Query
-        products = await mongooseQuery;
-      }
-
-    } else {
-
-      // Execute Query
-      products = await mongooseQuery;
-
-    };
-
-    res.status(200).json({
-      result: products.length,
-      paginationResults,
-      data: products,
-    });
-
+  res.status(200).json({
+    result: products.length,
+    paginationResults,
+    data: products,
+  });
 });
 
 // @desc    Get product by id
 // @route   GET /api/v1/products/:id
 // @access  Public
 exports.getProduct = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;  // Get product ID from URL params
 
-  const { id } = req.params;
-  let products;
+  // Find product by ID
+  let product = await productModel.findById(id);
 
-  if (req.headers.authorization) {
+  // Return error if product not found
+  if (!product) {
+    return next(new ApiError(`No product for this ID ${id}.`, 404));
+  }
 
-    const currentUser = await checkTheToken(req);
-    const userId = `${currentUser._id}`.toString();
+  // Check if user is logged in
+  const currentUser = await checkTheToken(req);
 
-    if ( !(userId === "undefined") ) {
-      // Execute Query
-      products = await productModel.findById(id).populate({
-        path: "saves",
-        select: "userId -productId -_id"
-      });
+  // Add favorite status to product if user is logged in
+  if (currentUser._id) {
+    product = JSON.parse(JSON.stringify(product));
+    product = (await addFavoriteStatusToProducts([product], currentUser._id))[0];
+  }
 
-      if (!products) {
-        return next(new ApiError(`No product for this id ${id}`, 404));
-      };
-
-      products = [products];
-
-      //check if user saved product
-      products = checkIfUserSavedProduct(products, userId);
-    } else {
-      // Execute Query
-      products = await productModel.findById(id);
-
-      if (!products) {
-        return next(new ApiError(`No product for this id ${id}`, 404));
-      };
-
-      products = [products];
-    }
-
-  } else {
-
-    // Execute Query
-    products = await productModel.findById(id);
-
-    if (!products) {
-      return next(new ApiError(`No product for this id ${id}`, 404));
-    };
-
-    products = [products];
-
-  };
-
-  res.status(200).json({ data: products[0] });
-
+  // Return product data
+  res.status(200).json({ data: product });
 });
 
 // @desc    Create product
@@ -377,7 +309,7 @@ exports.deleteProduct =   asyncHandler(async (req, res, next) => {
   );
 
   await reviewModel.deleteMany({ product: id });
-  await saveModel.deleteMany({ productId: id });
+  await favoriteModel.deleteMany({ productId: id });
 
   res.status(200).json({ data: product });
 

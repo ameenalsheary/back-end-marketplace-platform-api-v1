@@ -33,8 +33,6 @@ router
     logIn
   );
 
-
-
 router
   .route("/forgotPassword")
   .post(

@@ -6,16 +6,7 @@ const {
   updateUserValidator,
   userBlockValidator,
   deleteUserValidator,
-} = require("../utils/validators/userValidators/userValidator");
-
-const {
-  emailVerificationCodeValidator,
-  updateMyDataValidator,
-  addMyAddressValidator,
-  removeMyAddressValidator,
-  changeMyPasswordValidator,
-  changeMyEmailValidator
-} = require("../utils/validators/userValidators/userLoggedInValidator");
+} = require("../utils/validators/userValidator");
 
 const {
   uploadUserImages,
@@ -26,98 +17,11 @@ const {
   updateUser,
   userBlock,
   deleteUser,
-} = require("../services/userServices/userService");
-
-const {
-  emailVerification,
-  emailVerificationCode,
-  getMyData,
-  updateMyData,
-  getMyAddresses,
-  addMyAddress,
-  removeMyAddress,
-  changeMyPassword,
-  changeMyEmail
-} = require("../services/userServices/userLoggedIn");
+} = require("../services/userService");
 
 const protect_allowedTo = require("../services/authServises/protect&allowedTo");
 
 const router = express.Router();
-
-router.get(
-  "/emailverification",
-  protect_allowedTo.protect(true),
-  protect_allowedTo.allowedTo("user", "manager", "admin"),
-  emailVerification
-);
-
-router.post(
-  "/emailverificationcode",
-  protect_allowedTo.protect(true),
-  protect_allowedTo.allowedTo("user", "manager", "admin"),
-  emailVerificationCodeValidator,
-  emailVerificationCode
-);
-
-router.get(
-  "/mydata",
-  protect_allowedTo.protect(),
-  protect_allowedTo.allowedTo("user", "manager", "admin"),
-  getMyData,
-);
-
-router.put(
-  "/updatemydata",
-  protect_allowedTo.protect(),
-  protect_allowedTo.allowedTo("user", "manager", "admin"),
-  uploadUserImages,
-  updateMyDataValidator,
-  resizeUserImages,
-  updateMyData
-);
-
-router
-  .route("/addresses")
-  .get(
-    protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("user", "manager", "admin"),
-    getMyAddresses
-  )
-  .post(
-    protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("user", "manager", "admin"),
-    addMyAddressValidator,
-    addMyAddress
-  );
-
-router
-  .route("/addresses/:addressId")
-  .delete(
-    protect_allowedTo.protect(),
-    protect_allowedTo.allowedTo("user", "manager", "admin"),
-    removeMyAddressValidator,
-    removeMyAddress,
-  );
-
-router.put(
-  "/changemypassword",
-  protect_allowedTo.protect(),
-  protect_allowedTo.allowedTo("user", "manager", "admin"),
-  changeMyPasswordValidator,
-  changeMyPassword
-);
-
-router.put(
-  "/changemyemail",
-  protect_allowedTo.protect(true),
-  protect_allowedTo.allowedTo("user", "manager", "admin"),
-  changeMyEmailValidator,
-  changeMyEmail
-);
-
-/*
-  ##################################################
-*/
 
 router.use(
   protect_allowedTo.protect(),

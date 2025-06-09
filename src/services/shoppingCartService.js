@@ -66,10 +66,10 @@ const addRedisBullMQJob = async (cartId) => {
   return job;
 };
 
-// @desc    Add a product to the user's cart
-// @route   POST /api/v1/cart
+// @desc    Add a product to the customer's shopping cart
+// @route   POST /api/v1/customer/shopping-cart
 // @access  Private
-exports.addProductToCart = asyncHandler(async (req, res, next) => {
+exports.addProductToCustomerCart = asyncHandler(async (req, res, next) => {
   // Extract productId, quantity, and size from the request body
   let { productId, quantity, size } = req.body;
 
@@ -214,7 +214,7 @@ exports.addProductToCart = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Worker to remove item from cart if user doesn't buy it after 30 minutes
+// Worker to clear customer's shopping cart if customer doesn't buy items after 30 minutes
 const worker = new Worker(
   "cartQueue",
   async (job) => {
@@ -341,10 +341,10 @@ worker
     console.error(`Clear cart job ${job.id} failed with error: ${err.message}`);
   });
 
-// @desc    Retrieve the current user's cart
-// @route   GET /api/v1/cart
+// @desc    Retrieve the current customer's shopping cart
+// @route   GET /api/v1/customer/shopping-cart
 // @access  Private
-exports.getCart = asyncHandler(async (req, res) => {
+exports.getCustomerCart = asyncHandler(async (req, res) => {
   // Find the user's cart
   let cart = await cartModel.findOne({ user: req.user._id });
 
@@ -379,10 +379,10 @@ exports.getCart = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update the quantity of a specific product in the user's cart
-// @route   PUT /api/v1/cart/:productId
+// @desc    Update the quantity of a specific product in the customer's shopping cart
+// @route   PUT /api/v1/customer/shopping-cart/:productId
 // @access  Private
-exports.updateProductQuantityInCart = asyncHandler(async (req, res, next) => {
+exports.updateProductQuantityInCustomerCart = asyncHandler(async (req, res, next) => {
   // Extract productId, quantity, and size from the request body
   const { productId, quantity, size } = req.body;
 
@@ -506,10 +506,10 @@ exports.updateProductQuantityInCart = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Remove a specific product from the user's cart
-// @route   DELETE /api/v1/cart/:productId
+// @desc    Remove a specific product from the customer's shopping cart
+// @route   DELETE /api/v1/customer/shopping-cart/:productId
 // @access  Private
-exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
+exports.removeProductFromCustomerCart = asyncHandler(async (req, res, next) => {
   // Extract productId, and size from the request body
   const { productId, size } = req.body;
 
@@ -620,10 +620,10 @@ exports.removeProductFromCart = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Clear all items from the user's cart
-// @route   DELETE /api/v1/cart
+// @desc    Clear all items from the customer's shopping cart
+// @route   DELETE /api/v1/customer/shopping-cart/clearcartitems
 // @access  Private
-exports.clearCartItems = asyncHandler(async (req, res, next) => {
+exports.clearCustomerCart = asyncHandler(async (req, res, next) => {
   // Start a Mongoose session to allow for transactions
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -757,10 +757,10 @@ exports.clearCartItems = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Apply a discount coupon to the user's cart
-// @route   PUT /api/v1/cart/applycoupon
+// @desc    Apply a discount coupon to the customer's shopping cart
+// @route   PUT /api/v1/customer/shopping-cart/applycoupon
 // @access  Private
-exports.applyCoupon = asyncHandler(async (req, res) => {
+exports.applyCouponToCustomerCart = asyncHandler(async (req, res) => {
   const { couponCode } = req.body;
 
   // Check if the coupon exists and is still valid

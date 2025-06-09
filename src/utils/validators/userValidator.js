@@ -1,8 +1,8 @@
 const { check } = require("express-validator");
-const validatorMiddleware = require("../../../middlewares/validatorMiddleware");
+const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 const slugify = require("slugify");
 
-const userModel = require("../../../models/userModel");
+const userModel = require("../../models/userModel");
 
 exports.getUserValidator = [
   check("id")

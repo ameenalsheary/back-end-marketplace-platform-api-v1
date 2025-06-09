@@ -1,7 +1,7 @@
 const { check } = require("express-validator");
 const validatorMiddleware = require("../../middlewares/validatorMiddleware");
 
-exports.addProductToCartValidator = [
+exports.addProductToCustomerCartValidator = [
   check("productId")
     .notEmpty()
     .withMessage("Product ID is required.")
@@ -28,7 +28,7 @@ exports.addProductToCartValidator = [
   validatorMiddleware,
 ];
 
-exports.removeProductFromCartValidator = [
+exports.removeProductFromCustomerCartValidator = [
   check("productId")
     .notEmpty()
     .withMessage("Product ID is required.")
@@ -47,7 +47,7 @@ exports.removeProductFromCartValidator = [
   validatorMiddleware,
 ];
 
-exports.applyCouponValidator = [
+exports.applyCouponToCustomerCartValidator = [
   check("couponCode")
     .notEmpty()
     .withMessage("Coupon code is required.")
