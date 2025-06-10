@@ -109,7 +109,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
       </p>
 
       <p style="margin: 0; font-size: 14px; color: #777; line-height: 1.5">
-        <strong>Note:</strong> This code is valid for 10 minutes. If you didn’t
+        <strong>Note:</strong> This code will expire in 10 minutes. If you didn’t
         request this, please ignore this email or contact support.
       </p>
     </div>
@@ -118,7 +118,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       email: user.email,
-      subject: "Your password reset code (valid for 10 min).",
+      subject: "This code will expire in 10 minutes.",
       message,
     });
 

@@ -201,7 +201,7 @@ exports.emailVerification = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       email: user.email,
-      subject: "Your email verification code (valid for 10 min)",
+      subject: "This code will expire in 10 minutes.",
       message,
     });
   } catch (err) {
