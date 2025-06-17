@@ -70,4 +70,4 @@ subCategorySchema.post("save", async function (doc) {
   await setImageUrl(doc);
 });
 
-module.exports = mongoose.model(`subCategory`, subCategorySchema);
+module.exports = mongoose.model(`SubCategory`, subCategorySchema);

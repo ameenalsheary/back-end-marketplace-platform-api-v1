@@ -24,7 +24,7 @@ const underSubCategorySchema = new mongoose.Schema(
     },
     subCategory: {
       type: mongoose.Schema.ObjectId,
-      ref: `subCategory`,
+      ref: `SubCategory`,
       required: [true, "Under Sub category must be belong to sub category."],
       immutable: true,
     },
@@ -70,4 +70,4 @@ underSubCategorySchema.post("save", async function (doc) {
   await setImageUrl(doc);
 });
 
-module.exports = mongoose.model(`underSubCategory`, underSubCategorySchema);
+module.exports = mongoose.model(`UnderSubCategory`, underSubCategorySchema);

@@ -123,13 +123,13 @@ const productSchema = new mongoose.Schema(
     subCategories: [
       {
         type: mongoose.Schema.ObjectId,
-        ref: "subCategory",
+        ref: "SubCategory",
       },
     ],
     underSubCategories: [
       {
         type: mongoose.Schema.ObjectId,
-        ref: "underSubCategory",
+        ref: "UnderSubCategory",
       },
     ],
     brand: {
@@ -138,7 +138,7 @@ const productSchema = new mongoose.Schema(
     },
     group: {
       type: mongoose.Schema.ObjectId,
-      ref: "productsGroup",
+      ref: "ProductsGroup",
     },
     sold: {
       type: Number,

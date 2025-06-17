@@ -1,21 +1,13 @@
 const { check } = require("express-validator");
 const validatorMiddleware = require("../../middlewares/validatorMiddleware");
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const productModel = require('../../models/productModel');
+const productModel = require("../../models/productModel");
 
 // Custom validation function for MongoDB ObjectID
-const isValidObjectId = value => mongoose.Types.ObjectId.isValid(value);
-
-exports.getProductsGroupValidator = [
-  check("id")
-    .notEmpty()
-    .withMessage("Products group id is required.")
-    .isMongoId()
-    .withMessage("Invalid products group id format."),
-
-  validatorMiddleware,
-];
+const isValidObjectId = (value) => {
+  return mongoose.Types.ObjectId.isValid(value);
+};
 
 exports.creteProductsGroupValidator = [
   check("groupName")
@@ -30,57 +22,49 @@ exports.creteProductsGroupValidator = [
 
   check("productsIDs")
     .notEmpty()
-    .withMessage('Products IDs is required.')
+    .withMessage("Products IDs is required.")
     .isArray()
     .withMessage("Products IDs must be an array.")
-    .custom((value) => {
-
-      if (!( Array.isArray(value) && value.every(isValidObjectId) )) {
-
-        // Check products IDs format
-        if (value.length > 1) {
-          throw new Error('Invalid products IDs format.');
-        } else {
-          throw new Error('Invalid product ID format.');
-        };
-
-      };
-
-      return true;
-    })
     .custom(async (IDs) => {
-      const products = await productModel.find({ _id: IDs });
+      // Check products IDs format
+      if (!IDs.every((ID) => isValidObjectId(ID))) {
+        if (IDs.length === 1) {
+          throw new Error("Invalid product ID format.");
+        } else if (IDs.length > 1) {
+          throw new Error("Invalid products IDs format.");
+        }
+      }
 
-      // Check products IDs is exist
-      if (IDs.length !== products.length) {
-
-        if (IDs.length > 1) {
-          throw new Error(`No products for these IDs. ${IDs}.`);
-        } else {
+      const products = await productModel.find({ _id: IDs }).lean().select("_id, group");
+  
+      if (products.length !== IDs.length) {
+        if (IDs.length === 1) {
           throw new Error(`No product for this ID ${IDs}.`);
-        };
+        } else if (IDs.length > 1) {
+          throw new Error(`No products for these IDs ${IDs}.`);
+        }
+      }
 
-      };
-
-      // Check if product belong group
-      const check = products.some(item => mongoose.Types.ObjectId.isValid(item.group));
-
-      if (check) {
-        throw new Error('Product cannot belong to more than one group.');
-      };
-
-      return true;
+      if (products.some((product) => isValidObjectId(product.group))) {
+        throw new Error("Product cannot belong to more than one group.");
+      }
     }),
 
   validatorMiddleware,
 ];
 
-exports.updateProductsGroupValidator = [
+exports.getProductsGroupValidator = [
   check("id")
-    .notEmpty()
-    .withMessage("Products group id is required.")
     .isMongoId()
-    .withMessage("Invalid products group id format."),
+    .withMessage("Invalid products group ID format."),
+
+  validatorMiddleware,
+];
+
+exports.updateProductsGroupNameValidator = [
+  check("id")
+    .isMongoId()
+    .withMessage("Invalid products group ID format."),
 
   check("groupName")
     .optional()
@@ -96,63 +80,45 @@ exports.updateProductsGroupValidator = [
 
 exports.deleteProductsGroupValidator = [
   check("id")
-    .notEmpty()
-    .withMessage("Products group id is required.")
     .isMongoId()
-    .withMessage("Invalid products group id format."),
+    .withMessage("Invalid products group ID format."),
 
   validatorMiddleware,
 ];
 
 exports.addProductsToGroupValidator = [
   check("id")
-    .notEmpty()
-    .withMessage("Products group id is required.")
     .isMongoId()
-    .withMessage("Invalid products group id format."),
+    .withMessage("Invalid products group ID format."),
 
   check("productsIDs")
     .notEmpty()
-    .withMessage('Products IDs is required.')
+    .withMessage("Products IDs is required.")
     .isArray()
     .withMessage("Products IDs must be an array.")
-    .custom((value) => {
-
-      if (!( Array.isArray(value) && value.every(isValidObjectId) )) {
-
-        // Check products IDs format
-        if (value.length > 1) {
-          throw new Error('Invalid products IDs format.');
-        } else {
-          throw new Error('Invalid product ID format.');
-        };
-
-      };
-
-      return true;
-    })
     .custom(async (IDs) => {
-      const products = await productModel.find({ _id: IDs });
+      // Check products IDs format
+      if (!IDs.every((ID) => isValidObjectId(ID))) {
+        if (IDs.length === 1) {
+          throw new Error("Invalid product ID format.");
+        } else if (IDs.length > 1) {
+          throw new Error("Invalid products IDs format.");
+        }
+      }
 
-      // Check products IDs is exist
-      if (IDs.length !== products.length) {
-
-        if (IDs.length > 1) {
-          throw new Error(`No products for these IDs. ${IDs}.`);
-        } else {
+      const products = await productModel.find({ _id: IDs }).lean().select("_id, group");
+  
+      if (products.length !== IDs.length) {
+        if (IDs.length === 1) {
           throw new Error(`No product for this ID ${IDs}.`);
-        };
+        } else if (IDs.length > 1) {
+          throw new Error(`No products for these IDs ${IDs}.`);
+        }
+      }
 
-      };
-
-      // Check if product belong group
-      const check = products.some(item => mongoose.Types.ObjectId.isValid(item.group));
-
-      if (check) {
-        throw new Error('Product cannot belong to more than one group.');
-      };
-
-      return true;
+      if (products.some((product) => isValidObjectId(product.group))) {
+        throw new Error("Product cannot belong to more than one group.");
+      }
     }),
 
   validatorMiddleware,
@@ -160,30 +126,23 @@ exports.addProductsToGroupValidator = [
 
 exports.removeProductsFromGroupValidator = [
   check("id")
-    .notEmpty()
-    .withMessage("Products group id is required.")
     .isMongoId()
-    .withMessage("Invalid products group id format."),
+    .withMessage("Invalid products group ID format."),
 
   check("productsIDs")
     .notEmpty()
-    .withMessage('Products IDs is required.')
+    .withMessage("Products IDs is required.")
     .isArray()
     .withMessage("Products IDs must be an array.")
-    .custom((value) => {
-
+    .custom(async (IDs) => {
       // Check products IDs format
-      if (!( Array.isArray(value) && value.every(isValidObjectId) )) {
-
-        if (value.length > 1) {
-          throw new Error('Invalid products IDs format.');
-        } else {
-          throw new Error('Invalid product ID format.');
-        };
-
-      };
-
-      return true;
+      if (!IDs.every((ID) => isValidObjectId(ID))) {
+        if (IDs.length === 1) {
+          throw new Error("Invalid product ID format.");
+        } else if (IDs.length > 1) {
+          throw new Error("Invalid products IDs format.");
+        }
+      }
     }),
 
   validatorMiddleware,

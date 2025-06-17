@@ -1,14 +1,14 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const productsGroupSchema = mongoose.Schema(
   {
-    groupName:  {
+    groupName: {
       type: String,
       required: [true, "Group name is required."],
       trim: true,
       lowercase: true,
-      minlength: [2, "Too short group name."],
-      maxlength: [32, "Too long group name."],
+      minlength: [2, "Group name must be at least 2 characters."],
+      maxlength: [32, "Group name cannot exceed 32 characters."],
     },
     productsIDs: [
       {
@@ -29,4 +29,4 @@ productsGroupSchema.pre('find', function () {
   })
 });
 
-module.exports = mongoose.model('productsGroup', productsGroupSchema);
+module.exports = mongoose.model("ProductsGroup", productsGroupSchema);

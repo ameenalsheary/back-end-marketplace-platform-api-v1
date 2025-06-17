@@ -3,7 +3,7 @@ const express = require(`express`);
 const {
   getProductsGroupValidator,
   creteProductsGroupValidator,
-  updateProductsGroupValidator,
+  updateProductsGroupNameValidator,
   deleteProductsGroupValidator,
   addProductsToGroupValidator,
   removeProductsFromGroupValidator
@@ -13,7 +13,7 @@ const {
   getProductsGroups,
   getProductsGroup,
   creteProductsGroup,
-  updateProductsGroup,
+  updateProductsGroupName,
   deleteProductsGroup,
   addProductsToGroup,
   removeProductsFromGroup,
@@ -42,19 +42,23 @@ router
     getProductsGroupValidator,
     getProductsGroup
   ).put(
-    updateProductsGroupValidator,
-    updateProductsGroup,
+    updateProductsGroupNameValidator,
+    updateProductsGroupName,
   ).delete(
     deleteProductsGroupValidator,
     deleteProductsGroup
   );
 
 router
-  .route("/:id/productsids")
+  .route("/add-products-to-group/:id")
   .put(
     addProductsToGroupValidator,
     addProductsToGroup
-  ).delete(
+  );
+
+router
+  .route("/remove-products-from-group/:id")
+  .delete(
     removeProductsFromGroupValidator,
     removeProductsFromGroup
   );

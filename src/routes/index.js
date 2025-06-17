@@ -17,10 +17,10 @@ const mountRoutes = (app) => {
   app.use(`/api/v1/undersubcategories`, underSubCategoryRoutes);
   app.use(`/api/v1/brands`, brandRoutes);
   app.use(`/api/v1/products`, productRoutes);
-  app.use(`/api/v1/productsgroups`, productsGroupRoute);
+  app.use(`/api/v1/products-groups`, productsGroupRoute);
   app.use(`/api/v1/users`, userRoutes);
   app.use(`/api/v1/coupons`, couponRoutes);
-  app.use(`/api/v1/appsettings`, appSettingsRoutes);
+  app.use(`/api/v1/app-settings`, appSettingsRoutes);
   app.use(`/api/v1/auth`, authRoutes);
   app.use(`/api/v1/customer`, customerRoute);
   // app.use(`/api/v1/reviews`, reviewRoutes);

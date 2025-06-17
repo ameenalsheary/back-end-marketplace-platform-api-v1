@@ -18,4 +18,4 @@ const appSettingsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("appSettings", appSettingsSchema);
+module.exports = mongoose.model("AppSettings", appSettingsSchema);
