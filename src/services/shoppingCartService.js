@@ -193,7 +193,7 @@ exports.addProductToCustomerCart = asyncHandler(async (req, res, next) => {
 
       // If an error occurs, abort the transaction to prevent any changes from being saved
     await session.abortTransaction();
-    return next(new ApiError("Something went wrong. Please. Try again.", 500));
+    return next(new ApiError("Something went wrong. Please Try again.", 500));
   } finally {
     // End the session whether the transaction succeeds or fails
     session.endSession();
@@ -320,7 +320,7 @@ const worker = new Worker(
     } catch (error) {
       // If an error occurs, abort the transaction to prevent any changes from being saved
       await session.abortTransaction();
-      return next(new ApiError("Something went wrong. Please. Try again.", 500));
+      return next(new ApiError("Something went wrong. Please Try again.", 500));
     } finally {
       // End the session whether the transaction succeeds or fails
       session.endSession();
@@ -418,6 +418,8 @@ exports.updateProductQuantityInCustomerCart = asyncHandler(async (req, res, next
 
           // Check if the requested quantity exceeds the total available stock
           if (totalAvailableQuantity < quantity) {
+            await session.abortTransaction(); // Abort transaction first
+            await session.endSession();       // Then end session
             return next(new ApiError(`Only ${totalAvailableQuantity} item(s) are available in stock.`, 400));
           }
 
@@ -443,6 +445,8 @@ exports.updateProductQuantityInCustomerCart = asyncHandler(async (req, res, next
 
           // Check if the requested quantity exceeds the available stock for the selected size
           if (totalAvailableQuantity < quantity) {
+            await session.abortTransaction(); // Abort transaction first
+            await session.endSession();       // Then end session
             return next(new ApiError(`Only ${totalAvailableQuantity} item(s) are available for size ${cartItem.size.toUpperCase()}.`, 400));
           }
 
@@ -480,7 +484,7 @@ exports.updateProductQuantityInCustomerCart = asyncHandler(async (req, res, next
   } catch (error) {
     // If an error occurs, abort the transaction to prevent any changes from being saved
     await session.abortTransaction();
-    return next(new ApiError("Something went wrong. Please. Try again.", 500));
+    return next(new ApiError("Something went wrong. Please Try again.", 500));
   } finally {
     // End the session whether the transaction succeeds or fails
     session.endSession();
@@ -591,7 +595,7 @@ exports.removeProductFromCustomerCart = asyncHandler(async (req, res, next) => {
   } catch (error) {
     // If an error occurs, abort the transaction to prevent any changes from being saved
     await session.abortTransaction();
-    return next(new ApiError("Something went wrong. Please. Try again.", 500));
+    return next(new ApiError("Something went wrong. Please Try again.", 500));
   } finally {
     // End the session whether the transaction succeeds or fails
     session.endSession();
@@ -731,7 +735,7 @@ exports.clearCustomerCart = asyncHandler(async (req, res, next) => {
   } catch (error) {
     // If an error occurs, abort the transaction to prevent any changes from being saved
     await session.abortTransaction();
-    return next(new ApiError("Something went wrong. Please. Try again.", 500));
+    return next(new ApiError("Something went wrong. Please Try again.", 500));
   } finally {
     // End the session whether the transaction succeeds or fails
     session.endSession();

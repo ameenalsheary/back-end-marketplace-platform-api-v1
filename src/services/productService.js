@@ -1,4 +1,4 @@
-const { PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const mongoose = require("mongoose");
 const s3Client = require('../config/s3Client');
 const sharp = require("sharp");
 const asyncHandler = require("express-async-handler");
@@ -12,6 +12,12 @@ const productModel = require("../models/productModel");
 const { checkTheToken } = require('./authServises/protect&allowedTo');
 const reviewModel = require("../models/reviewModel");
 const favoriteModel = require("../models/favoriteModel");
+const productsGroupModel = require("../models/productsGroupModel");
+const {
+  uploadFileToS3,
+  extractFilePathsFromS3Urls,
+  deleteS3Objects,
+} = require("../utils/s3Utils");
 
 const awsBuckName = process.env.AWS_BUCKET_NAME;
 
@@ -47,76 +53,79 @@ exports.uploadProductImages = uploadMultipleImages([
 ]);
 
 // Images processing
-exports.resizeProductImages = asyncHandler(async (req, _, next) => {
+// Middleware to resize and upload product images
+exports.resizeProductImages = (reqMethod) =>
+  asyncHandler(async (req, _, next) => {
+    const imageFormat = "webp"; // Set image format to webp
 
-  // 1 - Image processing for imageCover
-  if (req.files?.imageCover) {
+    // Check if image cover exists
+    if (!req.files?.imageCover && reqMethod === "POST") {
+      return next(new ApiError("Product image cover is required.", 400));
+    }
 
-    const imageFormat = 'webp';
-
-    const buffer = await sharp(req.files.imageCover[0].buffer)
-    .resize(500, 690)
-    .toFormat(imageFormat)
-    .jpeg({ quality: 65 })
-    .toBuffer();
-
-    const imageCoverName = `product-${uuidv4()}-${Date.now()}.${imageFormat}`;
-
-    const params = {
-      Bucket: awsBuckName,
-      Key: `products/${imageCoverName}`,
-      Body: buffer,
-      ContentType: `image/${imageFormat}`,
-    };
-
-    const command = new PutObjectCommand(params);
-    await s3Client.send(command);
-
-    // Save image name to Into Your db
-    req.body.imageCover = imageCoverName;
-
-  };
-
-  // 2 - Image processing for images
-  if (req.files?.images) {
-
-    req.body.images = [];
-
-    await Promise.all(
-
-      req.files.images.map(async (img, index) => {
-
-        const imageFormat = 'webp';
-
-        const buffer = await sharp(img.buffer)
+    // === Process imageCover ===
+    if (req.files?.imageCover) {
+      // Resize, convert format, and optimize quality of cover image
+      const buffer = await sharp(req.files.imageCover[0].buffer)
         .resize(500, 690)
-        .toFormat(imageFormat)
-        .jpeg({ quality: 65 })
+        .toFormat(imageFormat, { quality: 65 })
         .toBuffer();
 
-        const imageName = `product-${uuidv4()}-${Date.now()}-${index + 1}.${imageFormat}`;
-    
-        const params = {
-          Bucket: awsBuckName,
-          Key: `products/${imageName}`,
-          Body: buffer,
-          ContentType: `image/${imageFormat}`,
-        };
-    
-        const command = new PutObjectCommand(params);
-        await s3Client.send(command);
-    
-        // Save image name to Into Your db
-        req.body.images.push(`${imageName}`);
+      // Generate unique filename for cover image
+      const imageCoverName = `product-${uuidv4()}-${Date.now()}.${imageFormat}`;
 
-      })
+      // Upload cover image to S3
+      await uploadFileToS3(
+        {
+          awsBuckName,
+          key: `products/${imageCoverName}`,
+          body: buffer,
+          contentType: `image/${imageFormat}`,
+        },
+        s3Client
+      );
 
-    );
+      // Add cover image filename to request body
+      req.body.imageCover = imageCoverName;
+    }
 
-  };
+    // === Process multiple images ===
+    // Check if there are additional images
+    if (req.files?.images?.length > 0) {
+      req.body.images = []; // Initialize images array
 
-  next();
-});
+      // Process all images in parallel
+      await Promise.all(
+        req.files.images.map(async (img, index) => {
+          // Resize, convert format, and optimize quality for each image
+          const buffer = await sharp(img.buffer)
+            .resize(500, 690)
+            .toFormat(imageFormat, { quality: 65 })
+            .toBuffer();
+
+          // Generate unique filename for each image
+          const imageName = `product-${uuidv4()}-${Date.now()}-${index + 1}.${imageFormat}`;
+
+          // Upload each image to S3
+          await uploadFileToS3(
+            {
+              awsBuckName,
+              key: `products/${imageName}`,
+              body: buffer,
+              contentType: `image/${imageFormat}`,
+            },
+            s3Client
+          );
+
+          // Add image filename to request body
+          req.body.images.push(imageName);
+        })
+      );
+    }
+
+    // Move to next middleware
+    next();
+  });
 
 // @desc    Get list of products
 // @route   GET /api/v1/products
@@ -159,7 +168,7 @@ exports.getProducts = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get product by id
+// @desc    Get product by ID
 // @route   GET /api/v1/products/:id
 // @access  Public
 exports.getProduct = asyncHandler(async (req, res, next) => {
@@ -191,126 +200,117 @@ exports.getProduct = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.createProduct = createOne(productModel);
 
-// @desc    Update product by id
+// @desc    Update product by ID
 // @route   PUT /api/v1/products/:id
 // @access  Private
 exports.updateProduct = asyncHandler(async (req, res, next) => {
-
-  const { id } = req.params;
-  const body = req.body;
-
-  if (body.imageCover || body.images) {
-
-    let product = await productModel.findByIdAndUpdate(
-      id,
-      body,
-    );
-
-    if (!product) {
-      return next(new ApiError(`No product for this id ${id}`, 404));
-    };
-
-    let allUrlsImages = [];
-    if (body.imageCover) {
-      allUrlsImages.push(product.imageCover);
-    };
-    if (body.images) {
-      allUrlsImages.push(...product.images);
-    };
+  const { id: productId } = req.params;
+  const { body } = req;
   
-    const keys = allUrlsImages.map((item) => {
-      const imageUrl = `${item}`;
-      const baseUrl = `${process.env.AWS_BASE_URL}/`;
-      const restOfUrl = imageUrl.replace(baseUrl, '');
-      const key = restOfUrl.slice(0, restOfUrl.indexOf('?'));
-      return key;
+  // Start a database transaction session
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  let product;
+  try {
+    // Check if we need to get the updated document (false if images are being updated)
+    const getNewDoc = body.imageCover || body.images?.length > 0 ? false : true;
+
+    // Find and update the product
+    product = await productModel.findByIdAndUpdate(productId, body, { 
+      new: getNewDoc, // Return updated doc based on getNewDoc
+      session // Include in transaction
     });
 
-    await Promise.all(
-  
-      keys.map(async (key) => {
-  
-        const params = {
-          Bucket: awsBuckName,
-          Key: key,
-        };
-  
-        const command = new DeleteObjectCommand(params);
-        await s3Client.send(command);
-  
-      })
-  
-    );
-
-    product = await productModel.find({ _id: id });
-
-    res.status(200).json({ data: product[0] });
-
-  } else {
-
-    const product = await productModel.findByIdAndUpdate(
-      id,
-      body,
-      { new: true }
-    );
-
+    // If product not found, return error
     if (!product) {
-      return next(new ApiError(`No product for this id ${id}`, 404));
+      await session.abortTransaction(); // Abort transaction first
+      await session.endSession();       // Then end session
+      return next(new ApiError(`No product for this ID ${productId}.`, 404));
     };
-  
-    res.status(200).json({ data: product });
 
-  };
+    // If updating images, delete old images from S3
+    if (!getNewDoc) {
+      const URLs = [];
+      if (body.imageCover) URLs.push(product.imageCover);
+      if (body.images?.length > 0) URLs.push(...product.images);
 
+      // Extract file paths from URLs and delete from S3
+      const keys = extractFilePathsFromS3Urls(URLs);
+      await deleteS3Objects(keys, awsBuckName, s3Client);
+
+      // Get fresh product data after image deletion
+      product = await productModel.findById(productId).session(session);
+    }
+
+    // Commit transaction if everything succeeded
+    await session.commitTransaction();
+  } catch (error) {
+    // Rollback transaction if any error occurs
+    await session.abortTransaction();
+    return next(new ApiError("Something went wrong. Please Try again.", 500));
+  } finally {
+    // End the session in all cases
+    session.endSession();
+  }
+
+  // Return updated product data
+  res.status(200).json({ data: product });
 });
 
-// @desc    Delete Product by id
+// @desc    Delete Product by ID
 // @route   DELETE /api/v1/products/:id
 // @access  Private
-exports.deleteProduct =   asyncHandler(async (req, res, next) => {
+exports.deleteProduct = asyncHandler(async (req, res, next) => {
+  const { id: productId } = req.params;
 
-  const { id } = req.params;
+  // Start a database transaction session
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  const product = await productModel.findByIdAndDelete({ _id: id });
-  if (!product) {
-    return next(new ApiError(`No product for this id ${id}`, 404));
-  };
+  let product;
+  try {
+    // Find and delete the product (inside the transaction)
+    product = await productModel.findByIdAndDelete(productId).session(session);
 
-  let allUrlsImages = [];
-  if (product.images) {
-    allUrlsImages.push(...product.images);
-  };
-  if (product.imageCover) {
-    allUrlsImages.push(product.imageCover);
-  };
+    // If product not found, return error
+    if (!product) {
+      await session.abortTransaction(); // Abort transaction first
+      await session.endSession();       // Then end session
+      throw next(new ApiError(`No product for this ID ${productId}.`, 404));
+    }
 
-  const keys = allUrlsImages.map((item) => {
-    const imageUrl = `${item}`;
-    const baseUrl = `${process.env.AWS_BASE_URL}/`;
-    const restOfUrl = imageUrl.replace(baseUrl, '');
-    const key = restOfUrl.slice(0, restOfUrl.indexOf('?'));
-    return key;
-  });
+    // Delete related reviews and favorites (atomic operations)
+    await reviewModel.deleteMany({ product: productId }).session(session);
+    await favoriteModel.deleteMany({ productId }).session(session);
 
-  await Promise.all(
+    // Remove product ID from all product groups
+    await productsGroupModel.updateMany(
+      { productsIDs: productId },
+      { $pull: { productsIDs: productId } },
+      { session }
+    );
 
-    keys.map(async (key) => {
+    // Delete associated images from S3 (non-database operation, but still in try-catch)
+    const URLs = [
+      ...(Array.isArray(product.images) ? product.images : []),
+      ...(product.imageCover ? [product.imageCover] : [])
+    ];
 
-      const params = {
-        Bucket: awsBuckName,
-        Key: key,
-      };
+    const keys = extractFilePathsFromS3Urls(URLs);
+    await deleteS3Objects(keys, awsBuckName, s3Client);
 
-      const command = new DeleteObjectCommand(params);
-      await s3Client.send(command);
+    // Commit the transaction if everything succeeds
+    await session.commitTransaction();
+  } catch (error) {
+    // Abort transaction and pass error
+    await session.abortTransaction();
+     return next(new ApiError("Something went wrong. Please Try again.", 500));
+  } finally {
+    // End the session in all cases (success or error)
+    session.endSession();
+  }
 
-    })
-
-  );
-
-  await reviewModel.deleteMany({ product: id });
-  await favoriteModel.deleteMany({ productId: id });
-
+  // Response
   res.status(200).json({ data: product });
-
 });

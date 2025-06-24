@@ -450,7 +450,7 @@ exports.updateProductValidator = [
     .custom(async (value) => {
       const product = await productModel.findById(value);
       if (!product) {
-        throw new Error(`No product for this id ${value}.`);
+        throw new Error(`No product for this ID ${value}.`);
       };
     }),
 
@@ -817,14 +817,6 @@ exports.deleteProductValidator = [
   check("id")
     .isMongoId()
     .withMessage("Invalid product id format."),
-
-  validatorMiddleware,
-];
-
-exports.imageValidator = [
-  check("imageCover")
-    .notEmpty()
-    .withMessage("Product image cover is required."),
 
   validatorMiddleware,
 ];

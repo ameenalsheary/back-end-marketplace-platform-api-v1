@@ -4,7 +4,6 @@ const {
   getUserValidator,
   createUserValidator,
   updateUserValidator,
-  userBlockValidator,
   deleteUserValidator,
 } = require("../utils/validators/userValidator");
 
@@ -15,7 +14,6 @@ const {
   getUser,
   createUser,
   updateUser,
-  userBlock,
   deleteUser,
 } = require("../services/userService");
 
@@ -55,11 +53,5 @@ router
     deleteUserValidator,
     deleteUser
   );
-
-router.put(
-  "/userblock/:id",
-  userBlockValidator,
-  userBlock,
-);
 
 module.exports = router;

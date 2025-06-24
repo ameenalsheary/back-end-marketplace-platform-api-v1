@@ -4,10 +4,12 @@ const slugify = require("slugify");
 
 const userModel = require("../../models/userModel");
 
+const allowedRoles = ["customer"];
+
 exports.getUserValidator = [
   check("id")
     .isMongoId()
-    .withMessage("Invalid user id format."),
+    .withMessage("Invalid user ID format."),
 
   validatorMiddleware,
 ];
@@ -18,17 +20,21 @@ exports.createUserValidator = [
     .withMessage("First name is required.")
     .isString()
     .withMessage("First name must be of type string.")
-    .isLength({ min: 3, max: 16 })
-    .withMessage("First name should be between 3 and 16 characters"),
+    .isLength({ min: 3 })
+    .withMessage("First name must be at least 3 characters.")
+    .isLength({ max: 32 })
+    .withMessage("First name cannot exceed 32 characters."),
 
   check("lastName")
     .notEmpty()
-    .withMessage("Last name is required")
+    .withMessage("Last name is required.")
     .isString()
     .withMessage("Last name must be of type string.")
-    .isLength({ min: 2, max: 16 })
-    .withMessage("Last name should be between 2 and 16 characters")
-    .custom((value, { req }) => {
+    .isLength({ min: 2 })
+    .withMessage("Last name must be at least 2 characters.")
+    .isLength({ max: 32 })
+    .withMessage("Last name cannot exceed 32 characters.")
+    .custom((_, { req }) => {
       const frisrName = req.body.firstName;
       const lastName = req.body.lastName;
       req.body.slug = slugify(`${frisrName} ${lastName}`);
@@ -45,7 +51,7 @@ exports.createUserValidator = [
     .custom(async (val) => {
       const user = await userModel.findOne({ email: val });
       if (user) {
-        throw new Error("E-mail already in user.");
+        throw new Error("Email already exists, please provide a different email address.");
       }
       return true;
     }),
@@ -57,12 +63,11 @@ exports.createUserValidator = [
     .withMessage("Email verification must be of type boolean."),
 
   check("phoneNumber")
-    .notEmpty()
-    .withMessage("Phone number is required.")
+    .optional()
     .isString()
-    .withMessage("Phone number must be of type string.")
-    .isMobilePhone(["ar-MA"])
-    .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
+    .withMessage("Phone number must be of type string."),
+    // .isMobilePhone(["ar-MA"])
+    // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
 
   check("profileImage")
     .custom((_, { req }) => {
@@ -88,22 +93,27 @@ exports.createUserValidator = [
     .isLength({ min: 8 })
     .withMessage("Password should be at least 8 characters long."),
 
-  check("passwordConfirm")
+  check("confirmPassword")
     .notEmpty()
-    .withMessage("Password confirm is required.")
+    .withMessage("Confirm password is required.")
     .isString()
-    .withMessage("Password confirm must be of type string.")
+    .withMessage("Confirm password must be of type string.")
     .custom((value, { req }) => {
       if (value !== req.body.password) {
-        throw new Error("Password confirm dose not match password.");
+        throw new Error("Confirm password does not match password.");
       }
       return true;
     }),
 
   check("role")
     .optional({ checkFalsy: true }) // This field is optional
-    .isIn(["user", "manager"])
-    .withMessage("Role must be of manager or user."),
+    .isIn(["customer"])
+    .withMessage(`Invalid role. Allowed roles: ${allowedRoles.join(", ")}.`),
+
+  check("userBlock")
+    .optional()
+    .isBoolean()
+    .withMessage("User block must be of type boolean."),
 
   validatorMiddleware,
 ];
@@ -111,24 +121,40 @@ exports.createUserValidator = [
 exports.updateUserValidator = [
   check("id")
     .isMongoId()
-    .withMessage("Invalid user id format.")
-    .custom(async (value, { req }) => {
-      const user = await userModel.findById(value);
+    .withMessage("Invalid user ID format.")
+    .custom(async (userId, { req }) => {
+      const user = await userModel.findById(userId);
+      // Check if user exists
       if (!user) {
-        throw new Error(`No user for this id ${value}.`);
+        throw new Error(`No user for this ID ${userId}.`);
+      }
+
+      // Check if user is admin (admins can't be updated)
+      if (user.role === "admin") {
+        throw new Error(`This user cannot be updated data because is an admin.`);
+      }
+
+      // Prepare URLs of old images to delete (if new ones were provided)
+      req.body.urlsOfUserImages = {
+        profileImage: user.profileImage,
+        profileCoverImage: user.profileCoverImage,
       };
+
+      return true;
     }),
 
   check("firstName")
     .optional()
     .isString()
     .withMessage("First name must be of type string.")
-    .isLength({ min: 3, max: 16 })
-    .withMessage("First name should be between 3 and 16 characters")
-    .custom((value, { req }) => {
+    .isLength({ min: 3 })
+    .withMessage("First name must be at least 3 characters.")
+    .isLength({ max: 32 })
+    .withMessage("First name cannot exceed 32 characters.")
+    .custom((_, { req }) => {
       const lastName = req.body.lastName;
       if (!lastName) {
-        throw new Error("Please write last name");
+        throw new Error("Please write last name.");
       }
       return true;
     }),
@@ -137,9 +163,11 @@ exports.updateUserValidator = [
     .optional()
     .isString()
     .withMessage("Last name must be of type string.")
-    .isLength({ min: 2, max: 16 })
-    .withMessage("Last name should be between 2 and 16 characters.")
-    .custom((value, { req }) => {
+    .isLength({ min: 2 })
+    .withMessage("Last name must be at least 2 characters.")
+    .isLength({ max: 32 })
+    .withMessage("Last name cannot exceed 32 characters.")
+    .custom((_, { req }) => {
       const frisrName = req.body.firstName;
       if (!frisrName) {
         throw new Error("Please write frist name.");
@@ -162,7 +190,7 @@ exports.updateUserValidator = [
     .custom(async (val) => {
       const user = await userModel.findOne({ email: val });
       if (user) {
-        throw new Error("E-mail already in user.");
+        throw new Error("Email already exists, please provide a different email address.");
       }
       return true;
     }),
@@ -175,42 +203,31 @@ exports.updateUserValidator = [
   check("phoneNumber")
     .optional()
     .isString()
-    .withMessage("Phone number must be of type string.")
-    .isMobilePhone(["ar-MA"])
-    .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
+    .withMessage("Phone number must be of type string."),
+  // .isMobilePhone(["ar-MA"])
+  // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
 
-  check("profileImage")
-    .custom((_, { req }) => {
-      if (!(req.body.profileImage === undefined)) {
-        throw new Error('The field you entered for profileImage is not an Image type.');
-      };
-      return true;
-    }),
+  check("profileImage").custom((_, { req }) => {
+    if (!(req.body.profileImage === undefined)) {
+      throw new Error("The field you entered for profileImage is not an Image type.");
+    }
+    return true;
+  }),
 
-  check("profileCoverImage")
-    .custom((_, { req }) => {
-      if (!(req.body.profileCoverImage === undefined)) {
-        throw new Error('The field you entered for profileCoverImage is not an Image type.');
-      };
-      return true;
-    }),
+  check("profileCoverImage").custom((_, { req }) => {
+    if (!(req.body.profileCoverImage === undefined)) {
+      throw new Error("The field you entered for profileCoverImage is not an Image type.");
+    }
+    return true;
+  }),
 
   check("role")
     .optional({ checkFalsy: true }) // This field is optional
-    .isIn(["user", "manager"])
-    .withMessage("Role must be of manager or user."),
-
-  validatorMiddleware,
-];
-
-exports.userBlockValidator = [
-  check("id")
-    .isMongoId()
-    .withMessage("Invalid user id format."),
+    .isIn(["customer"])
+    .withMessage(`Invalid role. Allowed roles: ${allowedRoles.join(", ")}.`),
 
   check("userBlock")
-    .notEmpty()
-    .withMessage("User block is required.")
+    .optional()
     .isBoolean()
     .withMessage("User block must be of type boolean."),
 
@@ -220,7 +237,7 @@ exports.userBlockValidator = [
 exports.deleteUserValidator = [
   check("id")
     .isMongoId()
-    .withMessage("Invalid user id format"),
+    .withMessage("Invalid user ID format."),
 
   validatorMiddleware,
 ];

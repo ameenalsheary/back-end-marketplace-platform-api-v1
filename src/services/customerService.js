@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
 
@@ -12,6 +12,10 @@ const createToken = require("../utils/createToken");
 const sendEmail = require("../utils/sendEmail");
 const ApiError = require("../utils/apiErrore");
 const { userPropertysPrivate } = require("../utils/propertysPrivate");
+const {
+  extractFilePathsFromS3Urls,
+  deleteS3Objects,
+} = require("../utils/s3Utils");
 
 // @desc Get customer details
 // @route GET /api/v1/customer
@@ -26,74 +30,57 @@ exports.getCustomerDetails = asyncHandler(async (req, res) => {
 // @desc Update customer details
 // @route PUT /api/v1/customer
 // @access Private
-exports.updateCustomerDetails = asyncHandler(async (req, res) => {
-  const id = req.user._id;
+exports.updateCustomerDetails = asyncHandler(async (req, res, next) => {
+  const userId = req.user._id;
   const body = req.body;
 
-  if (body.profileImage || body.profileCoverImage) {
-    let user = await userModel.findByIdAndUpdate(id, {
-      firstName: body.firstName,
-      lastName: body.lastName,
-      slug: body.slug,
-      phoneNumber: body.phoneNumber,
-      profileImage: body.profileImage,
-      profileCoverImage: body.profileCoverImage,
-    });
+  // Start a database transaction session
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    let allUrlsImages = [];
-
-    if (body.profileImage) {
-      allUrlsImages.push(user.profileImage);
-    }
-
-    if (body.profileCoverImage) {
-      allUrlsImages.push(user.profileCoverImage);
-    }
-
-    const keys = allUrlsImages.map((item) => {
-      const imageUrl = `${item}`;
-      const baseUrl = `${process.env.AWS_BASE_URL}/`;
-      const restOfUrl = imageUrl.replace(baseUrl, "");
-      const key = restOfUrl.slice(0, restOfUrl.indexOf("?"));
-      return key;
-    });
-
-    const awsBuckName = process.env.AWS_BUCKET_NAME;
-
-    await Promise.all(
-      keys.map(async (key) => {
-        const params = {
-          Bucket: awsBuckName,
-          Key: key,
-        };
-
-        const command = new DeleteObjectCommand(params);
-        await s3Client.send(command);
-      })
-    );
-
-    user = await userModel.find({ _id: id });
-
-    user = userPropertysPrivate(user[0]);
-
-    res.status(200).json({ data: user });
-  } else {
-    let user = await userModel.findByIdAndUpdate(
-      id,
+  let user;
+  try {
+    // Update user data
+    user = await userModel.findByIdAndUpdate(
+      userId,
       {
-        firstName: body.firstName,
-        lastName: body.lastName,
-        slug: body.slug,
-        phoneNumber: body.phoneNumber,
+        $set: {
+          firstName: body.firstName,
+          lastName: body.lastName,
+          slug: body.slug,
+          phoneNumber: body.phoneNumber,
+          profileImage: body.profileImage,
+          profileCoverImage: body.profileCoverImage,
+        }
       },
-      {
-        new: true,
-      }
+      { new: true, session } // Return updated document and use session
     );
 
-    user = userPropertysPrivate(user);
-    res.status(200).json({ data: user });
+    // Prepare URLs of old images to delete (if new ones were provided)
+    let URLs = [
+      body.profileImage ? req.user.profileImage : "",
+      body.profileCoverImage ? req.user.profileCoverImage : "",
+    ];
+
+    // Delete old images from S3
+    const awsBuckName = process.env.AWS_BUCKET_NAME;
+    const keys = extractFilePathsFromS3Urls(URLs);
+    await deleteS3Objects(keys, awsBuckName, s3Client);
+
+    // Commit the transaction if everything succeeded
+    await session.commitTransaction();
+  } catch (error) {
+    // If error occurs, abort the transaction
+    await session.abortTransaction();
+    return next(new ApiError("Something went wrong. Please Try again.", 500));
+  } finally {
+    // End the session in all cases
+    session.endSession();
   }
+
+  // Return updated user data (with private properties filtered)
+  const privateUser = userPropertysPrivate(user);
+  res.status(200).json({ data: privateUser });
 });
 
 // @desc Email verification
