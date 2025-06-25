@@ -5,7 +5,6 @@ const {
   createCategoryValidator,
   updateCategoryValidator,
   deleteCategoryValidator,
-  imageValidator
 } = require("../utils/validators/categoryValidator");
 const {
   getCategories,
@@ -35,7 +34,6 @@ router.route("/")
     uploadCategoryImage,
     createCategoryValidator,
     resizeImage,
-    imageValidator,
     createCategories
   );
 

@@ -52,14 +52,6 @@ exports.createSubCategoryValidator = [
       }
     }),
 
-  check("image")
-    .custom((_, { req }) => {
-      if (!(req.body.image === undefined)) {
-        throw new Error('The field you entered for Image is not an Image type.');
-      };
-      return true;
-    }),
-
   validatorMiddleware,
 ];
 
@@ -67,9 +59,12 @@ exports.updateSubCategoryValidator = [
   check("id")
     .isMongoId()
     .withMessage("Invalid sub category ID format.")
-    .custom(async (id) => {
+    .custom(async (id, { req }) => {
       const subCategory = await subCategoryModel.findById(id);
       if (!subCategory) throw new Error(`No sub category for this ID ${id}.`);
+      // Prepare URL of old image to delete (if new one is provided)
+      req.body.urlOfDocImage = subCategory.image;
+      return true;
     }),
 
   check("name")
@@ -85,14 +80,6 @@ exports.updateSubCategoryValidator = [
       return true;
     }),
 
-  check("image")
-    .custom((_, { req }) => {
-      if (!(req.body.image === undefined)) {
-        throw new Error('The field you entered for Image is not an Image type.');
-      };
-      return true;
-    }),
-
   validatorMiddleware,
 ];
 
@@ -100,14 +87,6 @@ exports.deleteSubCategoryValidator = [
   check("id")
     .isMongoId()
     .withMessage("Invalid sub category ID format."),
-
-  validatorMiddleware,
-];
-
-exports.imageValidator = [
-  check("image")
-    .notEmpty()
-    .withMessage("Sub category image is required."),
 
   validatorMiddleware,
 ];

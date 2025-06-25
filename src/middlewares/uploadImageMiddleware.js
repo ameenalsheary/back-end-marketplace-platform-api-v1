@@ -7,7 +7,7 @@ const multerOptions = () => {
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new ApiError("Only images allowd.", 400), false);
+      cb(new ApiError("Only image files are allowed.", 400), false);
     }
   };
   const upload = multer({ storage: multeStorage, fileFilter: multerFilter });

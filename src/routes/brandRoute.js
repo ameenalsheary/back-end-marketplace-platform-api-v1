@@ -5,7 +5,6 @@ const {
   createBrandValidator,
   updateBrandValidator,
   deleteBrandValidator,
-  imageValidator,
 } = require("../utils/validators/brandValidator");
 const {
   getBrands,
@@ -28,9 +27,8 @@ router
     protect_allowedTo.protect(),
     protect_allowedTo.allowedTo("admin"),
     uploadBrandImage,
-    createBrandValidator,    
+    createBrandValidator,
     resizeImage,
-    imageValidator,
     createBrand
   );
 

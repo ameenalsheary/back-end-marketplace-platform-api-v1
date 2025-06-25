@@ -6,7 +6,6 @@ const {
   createUnderSubCategoryValidator,
   updateUnderSubCategoryValidator,
   deleteUnderSubCategoryValidator,
-  imageValidator
 } = require("../utils/validators/underSubCategoryValidator");
 const {
   createFilterObj,
@@ -36,7 +35,6 @@ router
     setSubCategoryIdToBody,
     createUnderSubCategoryValidator,
     resizeImage,
-    imageValidator,
     createUnderSubCategory,
   );
 

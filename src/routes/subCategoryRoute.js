@@ -6,7 +6,6 @@ const {
   createSubCategoryValidator,
   updateSubCategoryValidator,
   deleteSubCategoryValidator,
-  imageValidator
 } = require("../utils/validators/subCategoryValidator");
 const {
   getSubCategories,
@@ -42,7 +41,6 @@ router
     setCategoryIdToBody,
     createSubCategoryValidator,
     resizeImage,
-    imageValidator,
     createSubCategory
   );
 

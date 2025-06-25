@@ -31,14 +31,6 @@ exports.createCategoryValidator = [
       return true;
     }),
 
-  check("image")
-    .custom((_, { req }) => {
-      if (!(req.body.image === undefined)) {
-        throw new Error('The field you entered for Image is not an Image type.');
-      };
-      return true;
-    }),
-
   validatorMiddleware,
 ];
 
@@ -46,9 +38,12 @@ exports.updateCategoryValidator = [
   check(`id`)
     .isMongoId()
     .withMessage(`Invalid category ID format.`)
-    .custom(async (id) => {
+    .custom(async (id, { req }) => {
       const category = await categoryModel.findById(id);
       if (!category) throw new Error(`No category for this ID ${id}.`);
+      // Prepare URL of old image to delete (if new one is provided)
+      req.body.urlOfDocImage = category.image;
+      return true;
     }),
 
   check("name")
@@ -68,14 +63,6 @@ exports.updateCategoryValidator = [
       return true;
     }),
 
-  check("image")
-    .custom((_, { req }) => {
-      if (!(req.body.image === undefined)) {
-        throw new Error('The field you entered for Image is not an Image type.');
-      };
-      return true;
-    }),
-
   validatorMiddleware,
 ];
 
@@ -83,14 +70,6 @@ exports.deleteCategoryValidator = [
   check("id")
   .isMongoId()
   .withMessage("Invalid category ID format."),
-
-  validatorMiddleware,
-];
-
-exports.imageValidator = [
-  check("image")
-    .notEmpty()
-    .withMessage("Category image is required."),
 
   validatorMiddleware,
 ];
