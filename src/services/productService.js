@@ -54,78 +54,79 @@ exports.uploadProductImages = uploadMultipleImages([
 
 // Images processing
 // Middleware to resize and upload product images
-exports.resizeProductImages = (reqMethod) =>
-  asyncHandler(async (req, _, next) => {
-    const imageFormat = "webp"; // Set image format to webp
+exports.resizeProductImages = asyncHandler(async (req, _, next) => {
+  const imageFormat = "webp"; // Set image format to webp
 
-    // Check if image cover exists
-    if (!req.files?.imageCover && reqMethod === "POST") {
-      return next(new ApiError("Product image cover is required.", 400));
-    }
+  // Check if image cover exists
+  if (!req.files?.imageCover && req.method === "POST") {
+    return next(new ApiError("Product image cover is required.", 400));
+  }
 
-    // === Process imageCover ===
-    if (req.files?.imageCover) {
-      // Resize, convert format, and optimize quality of cover image
-      const buffer = await sharp(req.files.imageCover[0].buffer)
-        .resize(500, 690)
-        .toFormat(imageFormat, { quality: 65 })
-        .toBuffer();
+  // === Process imageCover ===
+  if (req.files?.imageCover) {
+    // Resize, convert format, and optimize quality of cover image
+    const buffer = await sharp(req.files.imageCover[0].buffer)
+      .resize(500, 690)
+      .toFormat(imageFormat, { quality: 65 })
+      .toBuffer();
 
-      // Generate unique filename for cover image
-      const imageCoverName = `product-${uuidv4()}-${Date.now()}.${imageFormat}`;
+    // Generate unique filename for cover image
+    const imageCoverName = `product-${uuidv4()}-${Date.now()}.${imageFormat}`;
 
-      // Upload cover image to S3
-      await uploadFileToS3(
-        {
-          awsBuckName,
-          key: `products/${imageCoverName}`,
-          body: buffer,
-          contentType: `image/${imageFormat}`,
-        },
-        s3Client
-      );
+    // Upload cover image to S3
+    await uploadFileToS3(
+      {
+        awsBuckName,
+        key: `products/${imageCoverName}`,
+        body: buffer,
+        contentType: `image/${imageFormat}`,
+      },
+      s3Client
+    );
 
-      // Add cover image filename to request body
-      req.body.imageCover = imageCoverName;
-    }
+    // Add cover image filename to request body
+    req.body.imageCover = imageCoverName;
+  }
 
-    // === Process multiple images ===
-    // Check if there are additional images
-    if (req.files?.images?.length > 0) {
-      req.body.images = []; // Initialize images array
+  // === Process multiple images ===
+  // Check if there are additional images
+  if (req.files?.images?.length > 0) {
+    req.body.images = []; // Initialize images array
 
-      // Process all images in parallel
-      await Promise.all(
-        req.files.images.map(async (img, index) => {
-          // Resize, convert format, and optimize quality for each image
-          const buffer = await sharp(img.buffer)
-            .resize(500, 690)
-            .toFormat(imageFormat, { quality: 65 })
-            .toBuffer();
+    // Process all images in parallel
+    await Promise.all(
+      req.files.images.map(async (img, index) => {
+        // Resize, convert format, and optimize quality for each image
+        const buffer = await sharp(img.buffer)
+          .resize(500, 690)
+          .toFormat(imageFormat, { quality: 65 })
+          .toBuffer();
 
-          // Generate unique filename for each image
-          const imageName = `product-${uuidv4()}-${Date.now()}-${index + 1}.${imageFormat}`;
+        // Generate unique filename for each image
+        const imageName = `product-${uuidv4()}-${Date.now()}-${
+          index + 1
+        }.${imageFormat}`;
 
-          // Upload each image to S3
-          await uploadFileToS3(
-            {
-              awsBuckName,
-              key: `products/${imageName}`,
-              body: buffer,
-              contentType: `image/${imageFormat}`,
-            },
-            s3Client
-          );
+        // Upload each image to S3
+        await uploadFileToS3(
+          {
+            awsBuckName,
+            key: `products/${imageName}`,
+            body: buffer,
+            contentType: `image/${imageFormat}`,
+          },
+          s3Client
+        );
 
-          // Add image filename to request body
-          req.body.images.push(imageName);
-        })
-      );
-    }
+        // Add image filename to request body
+        req.body.images.push(imageName);
+      })
+    );
+  }
 
-    // Move to next middleware
-    next();
-  });
+  // Move to next middleware
+  next();
+});
 
 // @desc    Get list of products
 // @route   GET /api/v1/products

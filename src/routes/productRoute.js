@@ -37,7 +37,7 @@ router
     protect_allowedTo.allowedTo("admin"),
     uploadProductImages,
     createProductValidator,
-    resizeProductImages("POST"),
+    resizeProductImages,
     createProduct
   );
 
@@ -51,7 +51,7 @@ router
     protect_allowedTo.allowedTo("admin"),
     uploadProductImages,
     updateProductValidator,
-    resizeProductImages("PUT"),
+    resizeProductImages,
     updateProduct
   )
   .delete(

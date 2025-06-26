@@ -446,11 +446,11 @@ exports.updateProductValidator = [
 
   check("id")
     .isMongoId()
-    .withMessage("Invalid product id format.")
-    .custom(async (value) => {
-      const product = await productModel.findById(value);
+    .withMessage("Invalid product ID format.")
+    .custom(async (id) => {
+      const product = await productModel.findById(id);
       if (!product) {
-        throw new Error(`No product for this ID ${value}.`);
+        throw new Error(`No product for this ID ${id}.`);
       };
     }),
 
