@@ -30,24 +30,6 @@ const productSchema = new mongoose.Schema(
       minlength: [32, "Product description must be at least 32 characters."],
       maxlength: [1000, "Product description cannot exceed 1000 characters."],
     },
-    price: {
-      type: Number,
-      min: [0, "Product price must be between 0 and 10000."],
-      max: [10000, "Product price must be between 0 and 10000."],
-    },
-    priceBeforeDiscount: {
-      type: Number,
-      min: [0, "Product price before discount must be between 0 and 10000."],
-      max: [
-        10000,
-        "Product price before discount must be between 0 and 10000.",
-      ],
-    },
-    discountPercent: {
-      type: Number,
-      min: [0, "Product discount percent must be between 0 and 100."],
-      max: [100, "Product discount percent must be between 0 and 100."],
-    },
     color: {
       type: String,
       trim: true,
@@ -55,17 +37,6 @@ const productSchema = new mongoose.Schema(
       maxlength: [32, "Product color name cannot exceed 32 characters."],
       lowercase: true,
     },
-    imageCover: {
-      type: String,
-      required: [true, "Product image cover is required."],
-      trim: true,
-    },
-    images: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
     size: {
       type: String,
       trim: true,
@@ -77,6 +48,21 @@ const productSchema = new mongoose.Schema(
       type: Number,
       min: [1, "Product quantity must be between 1 and 1000."],
       max: [1000, "Product quantity must be between 1 and 1000."],
+    },
+    price: {
+      type: Number,
+      min: [0, "Product price must be between 0 and 10000."],
+      max: [10000, "Product price must be between 0 and 10000."],
+    },
+    priceBeforeDiscount: {
+      type: Number,
+      min: [0, "Product price before discount must be between 0 and 10000."],
+      max: [10000, "Product price before discount must be between 0 and 10000."],
+    },
+    discountPercent: {
+      type: Number,
+      min: [0, "Product discount percent must be between 0 and 100."],
+      max: [100, "Product discount percent must be between 0 and 100."],
     },
     sizes: [
       {
@@ -99,20 +85,25 @@ const productSchema = new mongoose.Schema(
         },
         priceBeforeDiscount: {
           type: Number,
-          min: [
-            0,
-            "Sizes: product price before discount must be between 0 and 10000.",
-          ],
-          max: [
-            10000,
-            "Sizes: product price before discount must be between 0 and 10000.",
-          ],
+          min: [0, "Sizes: product price before discount must be between 0 and 10000."],
+          max: [10000, "Sizes: product price before discount must be between 0 and 10000."],
         },
         discountPercent: {
           type: Number,
           min: [0, "Product discount percent must be between 0 and 100."],
           max: [100, "Product discount percent must be between 0 and 100."],
         },
+      },
+    ],
+    imageCover: {
+      type: String,
+      required: [true, "Product image cover is required."],
+      trim: true,
+    },
+    images: [
+      {
+        type: String,
+        trim: true,
       },
     ],
     category: {
@@ -180,11 +171,11 @@ productSchema.pre("findOne", function (next) {
 const showSmallestPriceSize = function (update) {
   if (update?.sizes) {
     const theSmallestPriceSize = findTheSmallestPriceInSize(update.sizes);
+    update.size = theSmallestPriceSize.size ?? "";
+    update.quantity = theSmallestPriceSize.quantity ?? "";
     update.price = theSmallestPriceSize.price ?? "";
     update.priceBeforeDiscount = theSmallestPriceSize.priceBeforeDiscount ?? "";
     update.discountPercent = theSmallestPriceSize.discountPercent ?? "";
-    update.size = theSmallestPriceSize.size ?? "";
-    update.quantity = theSmallestPriceSize.quantity ?? "";
   }
 };
 

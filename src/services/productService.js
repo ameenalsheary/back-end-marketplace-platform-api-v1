@@ -5,7 +5,6 @@ const asyncHandler = require("express-async-handler");
 const { v4: uuidv4 } = require("uuid");
 
 const ApiError = require("../utils/apiErrore");
-const { createOne } = require("./handlersFactory");
 const { uploadMultipleImages } = require("../middlewares/uploadImageMiddleware");
 const ApiFeatures = require("../utils/apiFeatures");
 const productModel = require("../models/productModel");
@@ -86,6 +85,8 @@ exports.resizeProductImages = asyncHandler(async (req, _, next) => {
 
     // Add cover image filename to request body
     req.body.imageCover = imageCoverName;
+  } else {
+    delete req.body.imageCover; // Remove imageCover if not provided
   }
 
   // === Process multiple images ===
@@ -122,6 +123,8 @@ exports.resizeProductImages = asyncHandler(async (req, _, next) => {
         req.body.images.push(imageName);
       })
     );
+  } else {
+    delete req.body.images; // Remove images if not provided
   }
 
   // Move to next middleware
@@ -199,7 +202,60 @@ exports.getProduct = asyncHandler(async (req, res, next) => {
 // @desc    Create product
 // @route   POST /api/v1/products
 // @access  Private
-exports.createProduct = createOne(productModel);
+exports.createProduct = asyncHandler(async (req, res) => {
+  const { body } = req;
+
+  let product;
+  if (Array.isArray(body.sizes) && body.sizes.length > 0) {
+    product = await productModel.create({
+      title: body.title,
+      slug: body.slug,
+      description: body.description,
+      color: body.color,
+      sizes: body.sizes,
+      imageCover: body.imageCover,
+      images: body.images,
+      category: body.category,
+      subCategories: body.subCategories,
+      underSubCategories: body.underSubCategories,
+      brand: body.brand,
+      sold: body.sold,
+      ratingsAverage: body.ratingsAverage,
+      ratingsQuantity: body.ratingsQuantity,
+    });
+  } else {
+    // Calculate discount percent if price and priceBeforeDiscount are provided
+    if (body.price && body.priceBeforeDiscount) {
+      body.discountPercent = Math.round(((body.priceBeforeDiscount - body.price) / body.priceBeforeDiscount) * 100);
+    } else {
+      delete body.discountPercent; // Remove discountPercent if not applicable
+    }
+
+    product = await productModel.create({
+      title: body.title,
+      slug: body.slug,
+      description: body.description,
+      color: body.color,
+      quantity: body.quantity,
+      price: body.price,
+      priceBeforeDiscount: body.priceBeforeDiscount,
+      discountPercent: body.discountPercent,
+      imageCover: body.imageCover,
+      images: body.images,
+      category: body.category,
+      subCategories: body.subCategories,
+      underSubCategories: body.underSubCategories,
+      brand: body.brand,
+      sold: body.sold,
+      ratingsAverage: body.ratingsAverage,
+      ratingsQuantity: body.ratingsQuantity,
+    });
+  }
+
+  res.status(201).json({
+    data: product,
+  });
+})
 
 // @desc    Update product by ID
 // @route   PUT /api/v1/products/:id
