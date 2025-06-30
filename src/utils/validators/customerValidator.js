@@ -48,22 +48,6 @@ exports.updateCustomerDetailsValidator = [
     .isMobilePhone(["ar-MA"])
     .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
 
-    check("profileImage")
-    .custom((_, { req }) => {
-      if (!(req.body.profileImage === undefined)) {
-        throw new Error('The field you entered for profileImage is not an Image type.');
-      };
-      return true;
-    }),
-
-  check("profileCoverImage")
-    .custom((_, { req }) => {
-      if (!(req.body.profileCoverImage === undefined)) {
-        throw new Error('The field you entered for profileCoverImage is not an Image type.');
-      };
-      return true;
-    }),
-
   validatorMiddleware,
 ];
 

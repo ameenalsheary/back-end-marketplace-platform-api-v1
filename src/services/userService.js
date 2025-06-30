@@ -61,7 +61,9 @@ exports.resizeUserImages = asyncHandler(async (req, res, next) => {
 
     // Add profile image filename to request body
     req.body.profileImage = profileImageName;
-  };
+  } else {
+    delete req.body.profileImage; // Remove if not uploaded
+  }
 
   // Check if cover image was uploaded
   if (req.files.profileCoverImage) {
@@ -85,7 +87,9 @@ exports.resizeUserImages = asyncHandler(async (req, res, next) => {
 
     // Add cover image filename to request body
     req.body.profileCoverImage = profileCoverImageName;
-  };
+  } else {
+    delete req.body.profileCoverImage; // Remove if not uploaded
+  }
 
   // Move to next middleware
   next();

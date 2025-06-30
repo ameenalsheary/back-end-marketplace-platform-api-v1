@@ -68,22 +68,6 @@ exports.createUserValidator = [
     .withMessage("Phone number must be of type string."),
     // .isMobilePhone(["ar-MA"])
     // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
-
-  check("profileImage")
-    .custom((_, { req }) => {
-      if (!(req.body.profileImage === undefined)) {
-        throw new Error('The field you entered for profileImage is not an Image type.');
-      };
-      return true;
-    }),
-
-  check("profileCoverImage")
-    .custom((_, { req }) => {
-      if (!(req.body.profileCoverImage === undefined)) {
-        throw new Error('The field you entered for profileCoverImage is not an Image type.');
-      };
-      return true;
-    }),
     
   check("password")
     .notEmpty()
@@ -206,20 +190,6 @@ exports.updateUserValidator = [
     .withMessage("Phone number must be of type string."),
   // .isMobilePhone(["ar-MA"])
   // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
-
-  check("profileImage").custom((_, { req }) => {
-    if (!(req.body.profileImage === undefined)) {
-      throw new Error("The field you entered for profileImage is not an Image type.");
-    }
-    return true;
-  }),
-
-  check("profileCoverImage").custom((_, { req }) => {
-    if (!(req.body.profileCoverImage === undefined)) {
-      throw new Error("The field you entered for profileCoverImage is not an Image type.");
-    }
-    return true;
-  }),
 
   check("role")
     .optional({ checkFalsy: true }) // This field is optional
