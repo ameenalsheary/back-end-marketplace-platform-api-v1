@@ -12,7 +12,7 @@ const productModel = require("../../models/productModel");
 // Custom validation function for MongoDB ObjectID
 const isValidObjectId = value => mongoose.Types.ObjectId.isValid(value);
 
-const sizesValidations = (sizes, req) => {
+const sizesValidations = (sizes) => {
   if (sizes.length === 0) {
     throw new Error("Product sizes cannot be an empty array.");
   };
@@ -136,19 +136,12 @@ const sizesValidations = (sizes, req) => {
     return item;
   })
 
-  // If sizes are provided, remove the other properties
-  // req.body.price = undefined;
-  // req.body.priceBeforeDiscount = undefined;
-  // req.body.discountPercent = undefined;
-  // req.body.quantity = undefined;
-  // req.body.size = undefined;
-
   return true;
 };
 
 exports.createProductValidator = [
   body().custom((_, { req }) => {
-    if (req.body.sizes === undefined && Object.keys(req.body).length !== 0) {
+    if (!req.body.sizes && Object.keys(req.body).length !== 0) {
       if (!req.body.price) {
         throw new Error("Product price is required when sizes are not provided.");
       }
@@ -225,7 +218,7 @@ exports.createProductValidator = [
     .optional()
     .isArray()
     .withMessage("Product sizes must be an array.")
-    .custom((sizes, { req }) => sizesValidations(sizes, req)),
+    .custom((sizes) => sizesValidations(sizes)),
 
   check("category")
     .notEmpty()
@@ -248,7 +241,12 @@ exports.createProductValidator = [
     .isArray()
     .withMessage("Product sub categories must be an array.")
     .custom(async (IDs, { req }) => {
-      // 1. Check if all are valid MongoDB ObjectIds
+      // Check if sub categories array is empty
+      if (IDs.length === 0) {
+        throw new Error("Product sub categories cannot be an empty array.");
+      }
+
+      // Check if all iDs are valid MongoDB ObjectIds
       const allValid = IDs.every(isValidObjectId);
       if (!allValid) {
         throw new Error(
@@ -258,7 +256,7 @@ exports.createProductValidator = [
         );
       }
 
-      // 2. Check if all IDs exist in the database
+      // Check if all IDs exist in the database
       const existingCount = await subCategoryModel.countDocuments({ _id: { $in: IDs } });
       if (existingCount !== IDs.length) {
         throw new Error(
@@ -268,7 +266,7 @@ exports.createProductValidator = [
         );
       }
 
-      // 3. Check if subcategories belong to the provided category
+      // Check if subcategories belong to the provided category
       const categoryId = req.body.category;
       const subCategories = await subCategoryModel.find({ category: categoryId }).select('_id');
       const listSubCategoriesIDs = subCategories.map(doc => doc._id.toString());
@@ -290,7 +288,7 @@ exports.createProductValidator = [
     .withMessage("Product under sub categories must be an array.")
     .custom(async (IDs, { req }) => {
       if (IDs?.length > 0) {
-        // 1. Check if all IDs are valid MongoDB ObjectIds
+        // Check if all IDs are valid MongoDB ObjectIds
         const allValid = IDs.every(isValidObjectId);
         if (!allValid) {
           throw new Error(
@@ -300,7 +298,7 @@ exports.createProductValidator = [
           );
         }
 
-        // 2. Check if all IDs exist in the database
+        // Check if all IDs exist in the database
         const existingCount = await underSubCategoryModel.countDocuments({ _id: { $in: IDs } });
         if (existingCount !== IDs.length) {
           throw new Error(
@@ -310,12 +308,10 @@ exports.createProductValidator = [
           );
         }
 
-        // 3. Check if under sub categories belong to the provided sub categories
+        // Check if under sub categories belong to the provided sub categories
         const subCategoriesIDs = req.body.subCategories;   
-        const underSubCategoryDocs = await underSubCategoryModel
-          .find({ subCategory: { $in: subCategoriesIDs } })
-          .select("_id");
-        const listUnderSubCategoriesIDs = underSubCategoryDocs.map(doc => doc._id.toString());
+        const underSubCategories = await underSubCategoryModel.find({ subCategory: { $in: subCategoriesIDs } }).select("_id");
+        const listUnderSubCategoriesIDs = underSubCategories.map(doc => doc._id.toString());
         const allBelong = IDs.every(id => listUnderSubCategoriesIDs.includes(id));
         if (!allBelong) {
           throw new Error(
@@ -332,14 +328,12 @@ exports.createProductValidator = [
     .optional()
     .isMongoId()
     .withMessage("Invalid brand ID format.")
-    .custom(async (_, { req }) => {
-      const ObjectId = req.body.brand;
-      const brand = await brandModel.findById(ObjectId);
-      if (brand) {
-        return true;
-      } else {
-        throw new Error(`No brand for this ID: ${ObjectId}.`);
+    .custom(async (brandId) => {
+      const brand = await brandModel.findById(brandId);
+      if (!brand) {
+        throw new Error(`No brand for this ID: ${brandId}.`);
       }
+      return true;
     }),
 
   check("sold")
@@ -375,23 +369,51 @@ exports.getProductValidator = [
 ];
 
 exports.updateProductValidator = [
-
-  body()
-    // Properties that cannot be entered by the user
-    .custom((_, { req }) => {
-      req.body.group = undefined;
-      req.body.size = undefined;
-      return true;
-    }),
-
   check("id")
     .isMongoId()
     .withMessage("Invalid product ID format.")
-    .custom(async (id) => {
-      const product = await productModel.findById(id);
+    .custom(async (productId, { req }) => {
+      const product = await productModel.findById(productId);
       if (!product) {
-        throw new Error(`No product for this ID ${id}.`);
+        throw new Error(`No product for this ID: ${productId}.`);
       };
+
+      const productSizes = product.sizes;
+      if (Array.isArray(productSizes) && productSizes.length > 0) {
+        delete req.body.size;
+        delete req.body.quantity;
+        delete req.body.price;
+        delete req.body.priceBeforeDiscount;
+        delete req.body.group;
+      } else {
+        delete req.body.sizes;
+      }
+
+      const productPrice = req.body.price;
+      const productPriceBeforeDiscount = req.body.priceBeforeDiscount;
+      if (productPrice && !productPriceBeforeDiscount) {
+        req.body.priceBeforeDiscount = product.priceBeforeDiscount;
+      } else if (!productPrice && productPriceBeforeDiscount) {
+        req.body.price = product.price;
+      }
+
+      if (req.body.price && req.body.priceBeforeDiscount) {
+        req.body.discountPercent = Math.round((req.body.priceBeforeDiscount - req.body.price) / req.body.priceBeforeDiscount * 100);
+      }
+      
+      if (req.body.category || req.body.subCategories || req.body.underSubCategories) {
+        if (!req.body.category) req.body.category = `${product.category._id}`.toString();        
+        if (!req.body.subCategories) req.body.subCategories = product.subCategories.map(subCategory => `${subCategory}`.toString());
+        if (!req.body.underSubCategories) req.body.underSubCategories = [];
+      }
+
+      // Prepare URLs of old images to delete (if new ones were provided)
+      req.body.urlsOfProductImages = {
+        imageCover: product.imageCover,
+        images: product.images || [],
+      };
+
+      return true;
     }),
 
   check("title")
@@ -416,73 +438,6 @@ exports.updateProductValidator = [
     .isLength({ max: 1000 })
     .withMessage("Product description cannot exceed 1000 characters."),
 
-  check("price")
-    .optional()
-    .isNumeric()
-    .withMessage("Product price must be of type number.")
-    .isFloat({ min: 0, max: 10000 })
-    .withMessage("Product price must be between 0 and 10000.")
-    .customSanitizer(value => parseFloat(value).toFixed(2))
-    .custom(async (value, { req }) => {
-      const product = await productModel.findById(req.params.id);
-      if (!product) {
-        throw new Error(`No product for this id ${req.params.id}.`);
-      };
-      if (product.sizes.length > 0) {
-        throw new Error(`You can update product price from sizes list.`);
-      }
-      if (!req.body.priceBeforeDiscount) {
-        if (product.priceBeforeDiscount) {
-          if (product.priceBeforeDiscount <= +value) {
-            await productModel.updateOne(
-              { _id: req.params.id },
-              { $unset: { priceBeforeDiscount: 1, discountPercent: 1 } }
-            );
-            req.body.discountPercent = undefined;
-          } else {
-            const { price } = req.body;
-            const { priceBeforeDiscount } = product;
-            const discount = (priceBeforeDiscount - price) / priceBeforeDiscount;
-            req.body.discountPercent = Math.round(discount * 100);
-          }          
-        }
-      }
-    }),
-
-  check("priceBeforeDiscount")
-    .optional()
-    .isNumeric()
-    .withMessage("Product price before discount must be of type number.")
-    .isFloat({ min: 0, max: 10000 })
-    .withMessage("Product price before discount must be between 0 and 10000.")
-    .custom(async (value, { req }) => {
-      const product = await productModel.findById(req.params.id);
-      if (!product) {
-        throw new Error(`No product for this id ${req.params.id}`);
-      };
-      if (product.sizes.length > 0) {
-        throw new Error(`You can update product price before discount from sizes list.`);
-      }
-      if (req.body.price) {
-        if (+req.body.price >= +value) {
-          throw new Error("Product price before discount must be greater than price.");
-        }
-        const { price } = req.body;
-        const { priceBeforeDiscount } = req.body;
-        const discount = (priceBeforeDiscount - price) / priceBeforeDiscount;
-        req.body.discountPercent = Math.round(discount * 100);
-      } else {
-        if (product.price >= +value) {
-          throw new Error("Product price before discount must be greater than price.");
-        }
-        const { price } = product;
-        const { priceBeforeDiscount } = req.body;
-        const discount = (priceBeforeDiscount - price) / priceBeforeDiscount;
-        req.body.discountPercent = Math.round(discount * 100);
-      }
-    })
-    .customSanitizer(value => parseFloat(value).toFixed(2)),
-
   check("color")
     .optional()
     .isString()
@@ -492,80 +447,52 @@ exports.updateProductValidator = [
     .isLength({ max: 32 })
     .withMessage("Product color name cannot exceed 32 characters."),
 
-  check("imageCover")
-    .custom((_, { req }) => {
-      if (!(req.body.imageCover === undefined)) {
-        throw new Error('The field you entered for ImageCover is not an Image type.');
-      };
-      return true;
-    }),
-
-  check("images")
-    .custom((_, { req }) => {
-      if (!(req.body.images === undefined)) {
-        throw new Error('The field you entered for Images is not an Image type.');
-      };
-      return true;
-    }),
-
   check("quantity")
     .optional()
-    .custom(async (_, { req }) => {
-      const product = await productModel.findById(req.params.id);
-      if (!product) {
-        throw new Error(`No product for this id ${req.params.id}`);
-      };
-      if (product.sizes.length > 0) {
-        throw new Error(`You can update product quantity from sizes list.`);
-      }
-    })
     .isNumeric()
     .withMessage("Product quantity must be of type number.")
     .isInt({ min: 1, max: 1000 })
     .withMessage("Product quantity must be an integer between 1 and 1000."),
 
-  check('sizes')
+  check("price")
     .optional()
-    .custom(async (_, { req }) => {
-      const product = await productModel.findById(req.params.id);
-      if (!product) {
-        throw new Error(`No product for this id ${req.params.id}`);
-      };
-      if (product.sizes.length === 0) {
-        throw new Error(`This product does not contain sizes field.`);
+    .isNumeric()
+    .withMessage("Product price must be of type number.")
+    .isFloat({ min: 0, max: 10000 })
+    .withMessage("Product price must be between 0 and 10000.")
+    .customSanitizer((value) => parseFloat(value).toFixed(2)),
+
+  check("priceBeforeDiscount")
+    .optional()
+    .isNumeric()
+    .withMessage("Product price before discount must be of type number.")
+    .isFloat({ min: 0, max: 10000 })
+    .withMessage("Product price before discount must be between 0 and 10000.")
+    .customSanitizer((value) => parseFloat(value).toFixed(2))
+    .custom((value, { req }) => {
+      if (+req.body.price >= +value) {
+        throw new Error("Product price before discount must be greater than price.");
       }
-    })
+      return true;
+    }),
+
+  check("sizes")
+    .optional()
     .isArray()
     .withMessage("Product sizes must be an array.")
-    .custom((sizes, { req }) => sizesValidations(sizes, req)),
+    .custom((sizes) => sizesValidations(sizes)),
 
   check("category")
     .optional()
     .isMongoId()
-    .withMessage("Invalid category id format.")
-    .custom((_, { req }) => {
-      if (!req.body.subCategories) {
-        throw new Error(`You must update sub categories.`);
-      };
-      return true;
-    })
-    .custom(async (_, { req }) => {
-      const { id } = req.params;
-      const product = await productModel.findById(id);
-      if (product.underSubCategories.length > 0) {
-        if (!req.body.underSubCategories) {
-          throw new Error(`You must update under sub categories.`);
-        };
-      };
-      return true;
-    })
+    .withMessage("Invalid category ID format.")
     .custom(async (_, { req }) => {
       const ObjectId = req.body.category;
       const category = await categoryModel.findById(ObjectId);
       if (category) {
         return true;
       } else {
-        throw new Error(`No category for this id ${ObjectId}.`);
+        throw new Error(`No category for this ID: ${ObjectId}.`);
       }
     }),
 
@@ -573,80 +500,45 @@ exports.updateProductValidator = [
     .optional()
     .isArray()
     .withMessage("Product sub categories must be an array.")
-    .withMessage("Invalid sub category id format.")
-    .custom((_, { req }) => {
-      if (!req.body.category) {
-        throw new Error(`You must update category.`);
-      };
-      return true;
-    })
-    .custom(async (_, { req }) => {
-      const { id } = req.params;
-      const product = await productModel.findById(id);
-      if (product.underSubCategories.length > 0) {
-        if (!req.body.underSubCategories) {
-          throw new Error(`You must update under sub categories.`);
-        };        
-      };
-      return true;
-    })
-    .custom((value) => {
-      if (!( Array.isArray(value) && value.every(isValidObjectId) )) {
-        if (value.length > 1) {
-          throw new Error('Invalid sub categories ids format.');
-        } else {
-          throw new Error('Invalid sub category id format.')
-        };
-      };
-      return true;
-    })
-    .custom(async (subCategoriesIds) => {
-      if (subCategoriesIds.length > 0) {
-        const subCategories = await subCategoryModel.find({
-          _id: { $in: subCategoriesIds },
-        });
-        if (subCategories.length !== subCategoriesIds.length) {
-          if (subCategoriesIds.length > 1) {
-            throw new Error(`No sub categories for this ids ${subCategoriesIds}.`);
-          } else {
-            throw new Error(`No sub category for this id ${subCategoriesIds}.`);
-          };
-        } else {
-          return true;
-        };
-      } else {
-        return true;
-      };
-    })
-    .custom(async (subCategoriesIds, { req }) => {
-      let product;
-      if (!req.body.category) {
-        product = await productModel.findById(req.params.id);
-        if (!product) {
-          throw new Error(`No product for this id ${req.params.id}`);
-        };
-      };
-      // step 1
-      const subCategories = await subCategoryModel.find({
-        category: req.body.category || product.category._id,
-      });
-      // step 2
-      const listSubCategoriesIds = [];
-      for (let i = 0; i < subCategories.length; i++) {
-        listSubCategoriesIds.push(subCategories[i]._id.toString());
-      };
-      // step 3
-      const check = subCategoriesIds.every((el) => {
-        return listSubCategoriesIds.includes(el);
-      });
-      // step 4
-      if (!check) {
-        if (subCategoriesIds.length > 1) {
-          throw new Error('Sub categories not belong to category.');
-        } else {
-          throw new Error('Sub category not belong to category.');
-        };
-      };
+    .custom(async (IDs, { req }) => {
+      // Check if sub categories array is empty
+      if (IDs.length === 0) {
+        throw new Error("Product sub categories cannot be an empty array.");
+      }
+
+      // Check if all iDs are valid MongoDB ObjectIds
+      const allValid = IDs.every(isValidObjectId);
+      if (!allValid) {
+        throw new Error(
+          IDs.length > 1 
+            ? "Invalid sub categories IDs format."
+            : "Invalid sub category ID format."
+        );
+      }
+
+      // Check if all IDs exist in the database
+      const existingCount = await subCategoryModel.countDocuments({ _id: { $in: IDs } });
+      if (existingCount !== IDs.length) {
+        throw new Error(
+          IDs.length > 1
+            ? `No sub categories for these IDs: ${IDs}.`
+            : `No sub category for this ID: ${IDs}.`
+        );
+      }
+
+      // Check if subcategories belong to the provided category
+      const categoryId = req.body.category;
+      const subCategories = await subCategoryModel.find({ category: categoryId }).select('_id');
+      const listSubCategoriesIDs = subCategories.map(doc => doc._id.toString());
+      const allBelong = IDs.every(id => listSubCategoriesIDs.includes(id));
+      if (!allBelong) {
+        throw new Error(
+          IDs.length > 1
+            ? "Sub categories do not belong to the specified category."
+            : "Sub category does not belong to the specified category."
+        );
+      }
+
       return true;
     }),
 
@@ -654,78 +546,54 @@ exports.updateProductValidator = [
     .optional()
     .isArray()
     .withMessage("Product under sub categories must be an array.")
-    .custom((value) => {
-      if (!( Array.isArray(value) && value.every(isValidObjectId) )) {
-        if (value.length > 1) {
-          throw new Error('Invalid under sub categories ids format.');
-        } else {
-          throw new Error('Invalid under sub category id format.');
-        };
-      };
-      return true;
-    })
-    .custom(async (underSubCategoriesIds) => {
-      if (underSubCategoriesIds.length > 0) {
-        const underSubCategories = await underSubCategoryModel.find({
-          _id: { $in: underSubCategoriesIds },
-        });
-        if (underSubCategories.length !== underSubCategoriesIds.length) {
-          if (underSubCategoriesIds.length > 1) {
-            throw new Error(`No under sub categories for this ids ${underSubCategoriesIds}.`);
-          } else {
-            throw new Error(`No under sub category for this id ${underSubCategoriesIds}.`);
-          };
-        } else {
-          return true;
-        };
-      } else {
-        return true;
-      };
-    })
-    .custom(async (underSubCategoriesIds, { req }) => {
-      let product;
-      if (!req.body.subCategories) {
-        product = await productModel.findById(req.params.id);
-        if (!product) {
-          throw new Error(`No product for this id ${req.params.id}.`);
+    .custom(async (IDs, { req }) => {
+      if (IDs?.length > 0) {
+        // Check if all IDs are valid MongoDB ObjectIds
+        const allValid = IDs.every(isValidObjectId);
+        if (!allValid) {
+          throw new Error(
+            IDs.length > 1
+              ? "Invalid under sub categories IDs format."
+              : "Invalid under sub category ID format."
+          );
         }
-      };
-      // step 1
-      const underSubcategories = await underSubCategoryModel.find({
-        subCategory: { $in: req.body.subCategories || product.subCategories },
-      });
-      // step 2
-      const listUnderSubCategoriesIds = [];
-      for (let i = 0; i < underSubcategories.length; i++) {
-        listUnderSubCategoriesIds.push(underSubcategories[i]._id.toString());
-      };
-      // step 3
-      const check = underSubCategoriesIds.every((el) => {
-        return listUnderSubCategoriesIds.includes(el);
-      });
-      // step 4
-      if (!check) {
-        if (underSubCategoriesIds.length > 1) {
-          throw new Error('Under sub categories not belong to sub categories.');
-        } else {
-          throw new Error('Under sub category not belong to sub categories.');
-        };
-      };
+
+        // Check if all IDs exist in the database
+        const existingCount = await underSubCategoryModel.countDocuments({ _id: { $in: IDs } });
+        if (existingCount !== IDs.length) {
+          throw new Error(
+            IDs.length > 1
+              ? `No under sub categories for these IDs: ${IDs}.`
+              : `No under sub category for this ID: ${IDs}.`
+          );
+        }
+
+        // Check if under sub categories belong to the provided sub categories
+        const subCategoriesIDs = req.body.subCategories;   
+        const underSubCategories = await underSubCategoryModel.find({ subCategory: { $in: subCategoriesIDs } }).select("_id");
+        const listUnderSubCategoriesIDs = underSubCategories.map(doc => doc._id.toString());
+        const allBelong = IDs.every(id => listUnderSubCategoriesIDs.includes(id));
+        if (!allBelong) {
+          throw new Error(
+            IDs.length > 1
+              ? `Under sub categories do not belong to the specified sub ${subCategoriesIDs.length > 1 ? "categories" : "category"}.`
+              : `Under sub category does not belong to the specified sub ${subCategoriesIDs.length > 1 ? "categories" : "category"}.`
+          );
+        }
+      }
       return true;
     }),
 
   check("brand")
     .optional()
     .isMongoId()
-    .withMessage("Invalid brand id format.")
-    .custom(async (_, { req }) => {
-      const ObjectId = req.body.brand;
-      const brand = await brandModel.findById(ObjectId);
-      if (brand) {
-        return true;
-      } else {
-        throw new Error(`No brand for this id ${ObjectId}.`);
+    .withMessage("Invalid brand ID format.")
+    .custom(async (brandId) => {
+      const brand = await brandModel.findById(brandId);
+      if (!brand) {
+        throw new Error(`No brand for this ID: ${brandId}.`);
       }
+      return true;
     }),
 
   check("sold")
@@ -741,7 +609,7 @@ exports.updateProductValidator = [
     .withMessage("Product ratings average must be of type number.")
     .isFloat({ min: 1, max: 5 })
     .withMessage("Product ratings average must be between 1 and 5.")
-    .customSanitizer(value => parseFloat(value).toFixed(2)),
+    .customSanitizer((value) => parseFloat(value).toFixed(2)),
 
   check("ratingsQuantity")
     .optional()

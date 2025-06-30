@@ -263,6 +263,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
 exports.updateProduct = asyncHandler(async (req, res, next) => {
   const { id: productId } = req.params;
   const { body } = req;
+  const { urlsOfProductImages } = body;
   
   // Start a database transaction session
   const session = await mongoose.startSession();
@@ -270,12 +271,10 @@ exports.updateProduct = asyncHandler(async (req, res, next) => {
 
   let product;
   try {
-    // Check if we need to get the updated document (false if images are being updated)
-    const getNewDoc = body.imageCover || body.images?.length > 0 ? false : true;
 
     // Find and update the product
     product = await productModel.findByIdAndUpdate(productId, body, { 
-      new: getNewDoc, // Return updated doc based on getNewDoc
+      new: true, // Return updated doc
       session // Include in transaction
     });
 
@@ -287,18 +286,13 @@ exports.updateProduct = asyncHandler(async (req, res, next) => {
     };
 
     // If updating images, delete old images from S3
-    if (!getNewDoc) {
-      const URLs = [];
-      if (body.imageCover) URLs.push(product.imageCover);
-      if (body.images?.length > 0) URLs.push(...product.images);
+    const URLs = [];
+    if (body.imageCover) URLs.push(urlsOfProductImages.imageCover);
+    if (body.images?.length > 0) URLs.push(...urlsOfProductImages.images);
 
-      // Extract file paths from URLs and delete from S3
-      const keys = extractFilePathsFromS3Urls(URLs);
-      await deleteS3Objects(keys, awsBuckName, s3Client);
-
-      // Get fresh product data after image deletion
-      product = await productModel.findById(productId).session(session);
-    }
+    // Extract file paths from URLs and delete from S3
+    const keys = extractFilePathsFromS3Urls(URLs);
+    await deleteS3Objects(keys, awsBuckName, s3Client);
 
     // Commit transaction if everything succeeded
     await session.commitTransaction();
