@@ -49,7 +49,6 @@ exports.updateCustomerDetails = asyncHandler(async (req, res, next) => {
           firstName: body.firstName,
           lastName: body.lastName,
           slug: body.slug,
-          phoneNumber: body.phoneNumber,
           profileImage: body.profileImage,
           profileCoverImage: body.profileCoverImage,
         }

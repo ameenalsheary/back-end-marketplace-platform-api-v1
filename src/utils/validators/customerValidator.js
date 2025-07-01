@@ -13,7 +13,7 @@ exports.updateCustomerDetailsValidator = [
     .withMessage("First name must be of type string.")
     .isLength({ min: 3, max: 16 })
     .withMessage("First name should be between 3 and 16 characters.")
-    .custom((value, { req }) => {
+    .custom((_, { req }) => {
       const lastName = req.body.lastName;
       if (!lastName) {
         throw new Error("Please write last name.");
@@ -27,7 +27,7 @@ exports.updateCustomerDetailsValidator = [
     .withMessage("Last name must be of type string.")
     .isLength({ min: 2, max: 16 })
     .withMessage("Last name should be between 2 and 16 characters.")
-    .custom((value, { req }) => {
+    .custom((_, { req }) => {
       const frisrName = req.body.firstName;
       if (!frisrName) {
         throw new Error("Please write frist name.");
@@ -40,13 +40,6 @@ exports.updateCustomerDetailsValidator = [
       req.body.slug = slugify(`${frisrName} ${lastName}`);
       return true;
     }),
-
-  check("phoneNumber")
-    .optional()
-    .isString()
-    .withMessage("Phone number must be of type string.")
-    .isMobilePhone(["ar-MA"])
-    .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
 
   validatorMiddleware,
 ];

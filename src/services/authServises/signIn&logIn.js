@@ -10,18 +10,25 @@ const { userPropertysPrivate } = require("../../utils/propertysPrivate");
 // @route POST /api/v1/auth/signup
 // @access Public
 exports.signUp = asyncHandler(async (req, res) => {
-  // 1 - Create user
+  // Extract request body
+  const { body } = req;
+
+  // Create new user in database with request body data
   const document = await userModel.create({
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    slug: req.body.slug,
-    email: req.body.email,
-    phoneNumber: req.body.phoneNumber,
-    password: req.body.password,
+    firstName: body.firstName,
+    lastName: body.lastName,
+    slug: body.slug,
+    email: body.email,
+    password: body.password,
   });
+  
+  // Remove sensitive data from user object
   const user = userPropertysPrivate(document);
-  // 2 - Create token
+  
+  // Generate JWT token for authentication
   const token = createToken(user._id);
+  
+  // Return user data and token with 201 status (created)
   res.status(201).json({
     date: user,
     token: token,
@@ -32,36 +39,28 @@ exports.signUp = asyncHandler(async (req, res) => {
 // @route POST /api/v1/auth/login
 // @access Public
 exports.logIn = asyncHandler(async (req, res, next) => {
-  // 1) check if password and email in the body (validation)
-  // 2) check if user exist & check if password is correct
-  const document = await userModel.findOne({ email: req.body.email });
+  // Extract request body
+  const { body } = req;
 
-  if (
-    !document ||
-    !(await bcrypt.compare(req.body.password, document.password))
-  ) {
-    return next(
-      new ApiError(
-        "Incorrect email or password.",
-        401
-      )
-    );
+  // Find user by email
+  const document = await userModel.findOne({ email: body.email });
+  
+  // Check if user exists and password matches
+  if (!document || !(await bcrypt.compare(body.password, document.password))) {
+    return next(new ApiError("Invalid email or password.", 401));
   }
-
+  
+  // Check if user account is blocked
   if (document.userBlock) {
-    return next(
-      new ApiError(
-        "Your account has been blocked. Please contact support for further assistance.",
-        401
-      )
-    );
+    return next(new ApiError("Your account has been blocked. Please contact support.", 403));
   }
-
+  
+  // Remove sensitive data from user object
   const user = userPropertysPrivate(document);
-
-  // 3) generate token
+  
+  // Generate JWT token for authentication
   const token = createToken(user._id);
-
-  // 4) send response to client side
+  
+  // Return user data and token with 200 status (success)
   res.status(200).json({ data: user, token });
 });

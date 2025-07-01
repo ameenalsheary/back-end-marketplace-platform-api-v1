@@ -38,17 +38,10 @@ exports.signUpValidator = [
     .custom(async (val) => {
       const user = await userModel.findOne({ email: val });
       if (user) {
-        throw new Error(`This email (${val}) already exist.`);
+        throw new Error(`Email ${val} is already in use. Please use another email.`);
       };
       return true;
     }),
-
-  check("phoneNumber")
-    .optional()
-    .isString()
-    .withMessage("Phone number must be of type string."),
-    // .isMobilePhone(["ar-MA"])
-    // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
 
   check("password")
     .notEmpty()
