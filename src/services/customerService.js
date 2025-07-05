@@ -11,6 +11,7 @@ const { getAll } = require("./handlersFactory");
 const createToken = require("../utils/createToken");
 const sendEmail = require("../utils/sendEmail");
 const ApiError = require("../utils/apiErrore");
+const fireBaseAdmin = require("../config/firebaseAdmin");
 const { userPropertysPrivate } = require("../utils/propertysPrivate");
 const { verificationEmailTemplate } = require("../utils/mailTemplates");
 const {
@@ -203,6 +204,68 @@ exports.verifyEmail = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     status: "Verified",
     message: "Your email has been verified.",
+  });
+});
+
+// @desc Add customer's phone number
+// @route POST /api/v1/customer/add-phone-number
+// @access Private
+exports.addPhoneNumber = asyncHandler(async (req, res, next) => {
+  // Get user ID from authenticated request and ID token from request body
+  const { _id: userId } = req.user;
+  const { idToken } = req.body;
+
+  let decodedToken;
+  try {
+    // Verify the Firebase ID token
+    decodedToken = await fireBaseAdmin.auth().verifyIdToken(idToken);
+    // Check if token is valid and contains a phone number
+    if (!decodedToken?.phone_number) {
+      return next(new ApiError("Invalid ID token or missing phone number.", 401));
+    }
+  } catch (error) {
+    // If verification fails, return an error
+    return next(new ApiError("Failed to verify ID token.", 401));
+  }
+
+  // Find the user in database
+  const user = await userModel.findById(userId);
+
+  // Check if phone number already exists in user's account
+  const phoneExists = user.phoneNumbers.some(
+    item => item.phone_number === decodedToken.phone_number
+  );
+
+  // If phone number exists, return info without adding again
+  if (phoneExists) {
+    return res.status(200).json({
+      status: "Success",
+      message: "This phone number already exists in your account.",
+      data: userPropertysPrivate(user),
+    });
+  }
+
+  // Prepare new phone number data to add
+  const phoneNumberData = {
+    user_id: decodedToken.uid,         // Firebase UID
+    phone_number: decodedToken.phone_number,  // Verified phone number
+    isVerified: true,                  // Mark as verified
+  };
+
+  // Add new phone number to user's account
+  const updatedUser = await userModel.findByIdAndUpdate(
+    userId,
+    {
+      $addToSet: { phoneNumbers: phoneNumberData }  // Safely add to array
+    },
+    { new: true }  // Return updated document
+  );
+
+  // Return success response with updated user data
+  res.status(201).json({
+    status: "Success",
+    message: "Phone number added successfully.",
+    data: userPropertysPrivate(updatedUser)
   });
 });
 

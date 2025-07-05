@@ -54,6 +54,16 @@ exports.verifyEmailValidator = [
   validatorMiddleware,
 ];
 
+exports.addPhoneNumberValidator = [
+  check("idToken")
+    .notEmpty()
+    .withMessage("ID token is required.")
+    .isString()
+    .withMessage("ID token must be of type string."),
+
+  validatorMiddleware,
+]
+
 exports.addProductToCustomerFavoritesValidator = [
   check("productId")
     .isMongoId()

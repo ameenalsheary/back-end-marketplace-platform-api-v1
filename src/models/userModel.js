@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
       required: [true, "Last name is required."],
       trim: true,
       minlength: [2, "Last name must be at least 2 characters."],
-      maxlength: [16, "Last name cannot exceed 16 characters."]
+      maxlength: [16, "Last name cannot exceed 16 characters."],
     },
     slug: {
       type: String,
@@ -41,10 +41,22 @@ const userSchema = new mongoose.Schema(
     },
     emailVerificationCode: String,
     emailVerificationCodeExpires: Date,
-    phoneNumber: {
-      type: String,
-      trim: true,
-    },
+    phoneNumbers: [
+      {
+        user_id: {
+          type: String,
+          trim: true,
+        },
+        phone_number: {
+          type: String,
+          trim: true,
+        },
+        isVerified: {
+          type: Boolean,
+          default: false,
+        }
+      },
+    ],
     profileImage: {
       type: String,
       trim: true,

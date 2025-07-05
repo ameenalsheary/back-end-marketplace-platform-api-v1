@@ -3,6 +3,7 @@ const express = require(`express`);
 const {
   updateCustomerDetailsValidator,
   verifyEmailValidator,
+  addPhoneNumberValidator,
   addProductToCustomerFavoritesValidator,
   removeProductFromCustomerFavoritesValidator,
   addAddressToCustomerAddressesListValidator,
@@ -32,6 +33,7 @@ const {
   emailVerification,
   verifyEmail,
   createFilterObj,
+  addPhoneNumber,
   getCustomerFavorites,
   addProductToCustomerFavorites,
   removeProductFromCustomerFavorites,
@@ -96,6 +98,17 @@ router
     verifyEmail
   );
 
+
+
+// Add phone number route
+router.
+  route("/add-phone-number")
+  .post(
+    protect_allowedTo.protect(true),
+    protect_allowedTo.allowedTo("admin", "customer"),
+    addPhoneNumberValidator,
+    addPhoneNumber
+  );
 
 
 
