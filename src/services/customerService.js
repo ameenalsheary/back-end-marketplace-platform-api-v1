@@ -207,11 +207,32 @@ exports.verifyEmail = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc Get customer's phone numbers
+// @route GET /api/v1/customer/phone-numbers
+// @access Private
+exports.getPhoneNumbers = asyncHandler(async (req, res) => {
+  // Get user ID from authenticated request
+  const userId = req.user._id;
+  
+  // Find user in database using the ID
+  const user = await userModel.findById(userId);
+
+  // Get phone numbers array and reverse its order
+  const phoneNumbers = user.phoneNumbers.reverse();
+
+  // Return success response with the phone numbers
+  res.status(200).json({
+    status: "Success",
+    message: "Phone numbers retrieved successfully.",
+    data: phoneNumbers,
+  });
+});
+
 // @desc Add customer's phone number
-// @route POST /api/v1/customer/add-phone-number
+// @route POST /api/v1/customer/phone-numbers
 // @access Private
 exports.addPhoneNumber = asyncHandler(async (req, res, next) => {
-  // Get user ID from authenticated request and ID token from request body
+  // Extract user ID from authenticated request and ID token from request body
   const { _id: userId } = req.user;
   const { idToken } = req.body;
 
@@ -219,53 +240,89 @@ exports.addPhoneNumber = asyncHandler(async (req, res, next) => {
   try {
     // Verify the Firebase ID token
     decodedToken = await fireBaseAdmin.auth().verifyIdToken(idToken);
-    // Check if token is valid and contains a phone number
+
+    // Check if phone number exists in the decoded token
     if (!decodedToken?.phone_number) {
       return next(new ApiError("Invalid ID token or missing phone number.", 401));
     }
   } catch (error) {
-    // If verification fails, return an error
+    // Handle token verification failure
     return next(new ApiError("Failed to verify ID token.", 401));
   }
 
-  // Find the user in database
+  // Find the user in the database
   const user = await userModel.findById(userId);
 
-  // Check if phone number already exists in user's account
+  // Check if phone number already exists for this user
   const phoneExists = user.phoneNumbers.some(
     item => item.phone_number === decodedToken.phone_number
   );
 
-  // If phone number exists, return info without adding again
+  // If phone number exists, return current list (reversed)
   if (phoneExists) {
+    const phoneNumbers = user.phoneNumbers.reverse();
+
     return res.status(200).json({
       status: "Success",
-      message: "This phone number already exists in your account.",
-      data: userPropertysPrivate(user),
+      message: "Phone number added successfully.",
+      data: phoneNumbers,
     });
   }
 
-  // Prepare new phone number data to add
+  // Prepare new phone number data
   const phoneNumberData = {
-    user_id: decodedToken.uid,         // Firebase UID
-    phone_number: decodedToken.phone_number,  // Verified phone number
-    isVerified: true,                  // Mark as verified
+    user_id: decodedToken.uid,
+    phone_number: decodedToken.phone_number,
+    isVerified: true,
   };
 
-  // Add new phone number to user's account
+  // Add new phone number to user's phoneNumbers array (using $addToSet to prevent duplicates)
   const updatedUser = await userModel.findByIdAndUpdate(
     userId,
     {
-      $addToSet: { phoneNumbers: phoneNumberData }  // Safely add to array
+      $addToSet: { phoneNumbers: phoneNumberData }
     },
-    { new: true }  // Return updated document
+    { new: true } // Return the updated document
   );
 
-  // Return success response with updated user data
+  // Get reversed phone numbers list
+  const phoneNumbers = updatedUser.phoneNumbers.reverse();
+
+  // Return success response with the updated phone numbers list
   res.status(201).json({
     status: "Success",
     message: "Phone number added successfully.",
-    data: userPropertysPrivate(updatedUser)
+    data: phoneNumbers
+  });
+});
+
+// @desc Delete customer's phone number
+// @route DELETE /api/v1/customer/phone-numbers/:phoneNumberId
+// @access Private
+exports.deletePhoneNumber = asyncHandler(async (req, res) => {
+  // Get user ID from authenticated request
+  const userId = req.user._id;
+  // Get phone number ID from URL parameters
+  const phoneNumberId = req.params.phoneNumberId;
+
+  // Find user and remove the specified phone number from their phoneNumbers array
+  const user = await userModel.findByIdAndUpdate(
+    userId,
+    {
+      // $pull operator removes from array all elements that match the query
+      $pull: { phoneNumbers: { _id: phoneNumberId } },
+    },
+    { new: true } // Return the updated document
+  );
+
+  // Get the updated phone numbers list in reverse order
+  const newPhoneNumbers = user.phoneNumbers.reverse();
+
+  // Return success response with the updated phone numbers list
+  res.status(200).json({
+    status: "Success",
+    message: "Phone number deleted successfully",
+    data: newPhoneNumbers,
   });
 });
 

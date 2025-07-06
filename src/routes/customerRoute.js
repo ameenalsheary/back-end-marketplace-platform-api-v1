@@ -4,6 +4,7 @@ const {
   updateCustomerDetailsValidator,
   verifyEmailValidator,
   addPhoneNumberValidator,
+  deletePhoneNumberValidator,
   addProductToCustomerFavoritesValidator,
   removeProductFromCustomerFavoritesValidator,
   addAddressToCustomerAddressesListValidator,
@@ -32,8 +33,10 @@ const {
   updateCustomerDetails,
   emailVerification,
   verifyEmail,
-  createFilterObj,
+  getPhoneNumbers,
   addPhoneNumber,
+  deletePhoneNumber,
+  createFilterObj,
   getCustomerFavorites,
   addProductToCustomerFavorites,
   removeProductFromCustomerFavorites,
@@ -100,14 +103,27 @@ router
 
 
 
-// Add phone number route
-router.
-  route("/add-phone-number")
-  .post(
+// Customer phone numbers routes
+router
+  .route("/phone-numbers")
+  .get(
+    protect_allowedTo.protect(),
+    protect_allowedTo.allowedTo("admin", "customer"),
+    getPhoneNumbers
+  ).post(
     protect_allowedTo.protect(true),
     protect_allowedTo.allowedTo("admin", "customer"),
     addPhoneNumberValidator,
     addPhoneNumber
+  );
+
+router.
+  route("/phone-numbers/:phoneNumberId")
+  .delete(
+    protect_allowedTo.protect(true),
+    protect_allowedTo.allowedTo("admin", "customer"),
+    deletePhoneNumberValidator,
+    deletePhoneNumber
   );
 
 

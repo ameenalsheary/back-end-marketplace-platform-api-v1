@@ -62,7 +62,15 @@ exports.addPhoneNumberValidator = [
     .withMessage("ID token must be of type string."),
 
   validatorMiddleware,
-]
+];
+
+exports.deletePhoneNumberValidator = [
+  check("phoneNumberId")
+    .isMongoId()
+    .withMessage(`Invalid phone number ID format.`),
+
+  validatorMiddleware,
+];
 
 exports.addProductToCustomerFavoritesValidator = [
   check("productId")
