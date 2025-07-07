@@ -61,13 +61,6 @@ exports.createUserValidator = [
     .withMessage("Email verification is required.")
     .isBoolean()
     .withMessage("Email verification must be of type boolean."),
-
-  check("phoneNumber")
-    .optional()
-    .isString()
-    .withMessage("Phone number must be of type string."),
-    // .isMobilePhone(["ar-MA"])
-    // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
     
   check("password")
     .notEmpty()
@@ -183,13 +176,6 @@ exports.updateUserValidator = [
     .optional()
     .isBoolean()
     .withMessage("Email verification must be of type boolean."),
-
-  check("phoneNumber")
-    .optional()
-    .isString()
-    .withMessage("Phone number must be of type string."),
-  // .isMobilePhone(["ar-MA"])
-  // .withMessage("Invalid phone number only accepted Morocco Phone numbers."),
 
   check("role")
     .optional({ checkFalsy: true }) // This field is optional

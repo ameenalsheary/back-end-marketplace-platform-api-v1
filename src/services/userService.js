@@ -152,7 +152,6 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
           slug: body.slug,
           email: body.email,
           emailVerification: body.emailVerification,
-          phoneNumber: body.phoneNumber,
           profileImage: body.profileImage,
           profileCoverImage: body.profileCoverImage,
           role: body.role,
