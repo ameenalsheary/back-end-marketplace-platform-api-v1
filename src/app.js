@@ -1,51 +1,57 @@
 const express = require("express");
 const morgan = require("morgan");
+const passport = require('passport');
 const dotenv = require("dotenv");
 
-// Load environment variables
+// Initialize environment variables
 dotenv.config();
 
 const dbConection = require(`./config/database`);
 const addSecurityMiddlewares = require("./middlewares/securityMiddleware");
+const googleStrategy = require("./config/googleStrategy");
 const mountRoutes = require("./routes");
 const ApiError = require("./utils/apiErrore");
 const globalError = require("./middlewares/erroreMiddleware");
 const { handleStripeWebhook } = require("./services/orderServise");
 
-// Initialize Express app
 const app = express();
 
-// Database connection
-dbConection();
+dbConection(); // Connect to database
 
-// Checkout webhook
+// Stripe webhook endpoint (needs raw body for verification)
 app.post(
   "/webhook",
-  express.raw({ type: "application/json" }),
+  express.raw({ type: "application/json" }), // Get raw body for webhook
   handleStripeWebhook
 );
 
-// Apply security-related middlewares (e.g., CORS, Helmet)
+// Initialize passport for authentication
+app.use(passport.initialize());
+
+// Configure Google OAuth strategy
+passport.use(googleStrategy);
+
+// Add security middlewares (CORS, rate limiting, etc.)
 addSecurityMiddlewares(app);
 
-// Middleware to parse JSON payloads with size restriction
+// Parse JSON requests with size limit
 app.use(express.json({ limit: "20kb" }));
 
-// Enable detailed request logging in development mode using Morgan
+// Development-only middlewares
 if (process.env.MODE_ENV === `development`) {
-  app.use(morgan("tiny")); // Logs HTTP requests in a concise format
-  console.log(`Mode: ${process.env.MODE_ENV}`); // Log the current environment mode
+  app.use(morgan("tiny")); // Log HTTP requests in development
+  console.log(`Mode: ${process.env.MODE_ENV}`); // Show current environment
 }
 
-// Mount application routes
+// Mount all application routes
 mountRoutes(app);
 
-// Handle undefined routes by responding
+// Handle 404 (Not Found) for all undefined routes
 app.all(`*`, (req, _, next) => {
   next(new ApiError(`Can't find this rout: ${req.originalUrl}.`, 404));
 });
 
-// Global error handling middleware
+// Use global error handler
 app.use(globalError);
 
-module.exports = app;
+module.exports = app; // Export the express application

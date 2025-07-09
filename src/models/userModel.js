@@ -54,7 +54,7 @@ const userSchema = new mongoose.Schema(
         isVerified: {
           type: Boolean,
           default: false,
-        }
+        },
       },
     ],
     profileImage: {
@@ -67,12 +67,14 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required."],
-      minlength: [8, "Password should be at least 8 characters long."],
     },
     passwordChangedAt: Date,
     passwordResetCode: String,
     passwordResetExpires: Date,
+    isGoogleUser: {
+      type: Boolean,
+      default: false,
+    },
     role: {
       type: String,
       enum: ["customer", "admin"],
@@ -130,7 +132,7 @@ const userSchema = new mongoose.Schema(
 );
 
 const setImageUrl = async (doc) => {
-  if (doc.profileImage) {
+  if (doc.profileImage && !`${doc.profileImage}`.startsWith("http")) {
     const getObjectParams = {
       Bucket: awsBuckName,
       Key: `users/${doc.profileImage}`,

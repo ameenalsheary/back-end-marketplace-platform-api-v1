@@ -8,6 +8,7 @@ const userRoutes = require("./userRoute");
 const couponRoutes = require("./couponRoute");
 const appSettingsRoutes = require("./appSettingsRoute");
 const authRoutes = require("./authRoute");
+const googleAuthRoutes = require("./googleAuthRoute");
 const customerRoute = require("./customerRoute");
 // const reviewRoutes = require("./reviewRoute");
 
@@ -22,6 +23,7 @@ const mountRoutes = (app) => {
   app.use(`/api/v1/coupons`, couponRoutes);
   app.use(`/api/v1/app-settings`, appSettingsRoutes);
   app.use(`/api/v1/auth`, authRoutes);
+  app.use(`/auth/google`, googleAuthRoutes);
   app.use(`/api/v1/customer`, customerRoute);
   // app.use(`/api/v1/reviews`, reviewRoutes);
 };

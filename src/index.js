@@ -5,7 +5,7 @@ const baseUrl = process.env.BASE_URL || "http://localhost";
 
 // Start the server
 const server = app.listen(port, (_) => {
-  console.log(`App runnig on ${baseUrl}:${port}.`);
+  console.log(`✅ App is runnig on ${baseUrl}:${port}.`);
 });
 
 // handle rejection outside express

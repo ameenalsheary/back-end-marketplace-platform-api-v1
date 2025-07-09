@@ -6,6 +6,7 @@ exports.userPropertysPrivate = (document) => {
     `passwordChangedAt`,
     `passwordResetCode`,
     `passwordResetExpires`,
+    `isGoogleUser`,
   ];
   for (let i = 0; i < propertys.length; i++) {
     document[propertys[i]] = undefined;
