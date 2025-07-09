@@ -4,18 +4,26 @@ const rateLimit = require("express-rate-limit");
 const hpp = require("hpp");
 const mongoSanitize = require("express-mongo-sanitize");
 const xss = require("xss-clean");
+const helmet = require("helmet");
 
 function addSecurityMiddlewares(app) {
+  // Set security HTTP headers
+  app.use(helmet());
+
+  // Prepear CORS options
+  const corsOptions = {
+    origin: [process.env.FRONT_END_BASE_URL],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  };
+  
   // Enable CORS (Cross-Origin Resource Sharing) with specific frontend URL
-  app.use(
-    cors()
-  );
+  app.use(cors(corsOptions));
 
   // Handle preflight requests (OPTIONS) for all routes
-  app.options(
-    "*",
-    cors()
-  );
+  app.options("*", cors(corsOptions));
 
   // Compress all responses to reduce size
   app.use(compression());
