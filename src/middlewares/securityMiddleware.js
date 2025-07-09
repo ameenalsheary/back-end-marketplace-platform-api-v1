@@ -8,21 +8,13 @@ const xss = require("xss-clean");
 function addSecurityMiddlewares(app) {
   // Enable CORS (Cross-Origin Resource Sharing) with specific frontend URL
   app.use(
-    cors({
-      origin: [process.env.FRONT_END_BASE_URL],
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "DELETE"],
-    })
+    cors()
   );
 
   // Handle preflight requests (OPTIONS) for all routes
   app.options(
     "*",
-    cors({
-      origin: [process.env.FRONT_END_BASE_URL],
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "DELETE"],
-    })
+    cors()
   );
 
   // Compress all responses to reduce size
