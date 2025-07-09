@@ -13,7 +13,7 @@ exports.googleAuthCallback = asyncHandler(async (req, res) => {
   // Set the token as an HTTP-only, secure cookie
   res.cookie("JWTToken", token, {
     httpOnly: false,       // Accessible via JavaScript
-    secure: true,          // Only sent over HTTPS
+    secure: false,          // Only sent over HTTPS
     sameSite: "None",      // Allow cross-site usage
     maxAge: 90 * 24 * 60 * 60 * 1000, // Cookie expires in 90 days
   });
