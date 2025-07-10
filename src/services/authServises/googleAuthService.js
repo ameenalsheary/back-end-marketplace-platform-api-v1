@@ -15,6 +15,7 @@ exports.googleAuthCallback = asyncHandler(async (req, res) => {
     httpOnly: false,       // Accessible via JavaScript
     secure: true,          // Only sent over HTTPS
     sameSite: "None",      // Allow cross-site usage
+    domain: ".eshopapp.shop", // Important for subdomains (leading dot)
     maxAge: 90 * 24 * 60 * 60 * 1000, // Cookie expires in 90 days
   });
 
