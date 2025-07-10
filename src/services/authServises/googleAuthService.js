@@ -14,7 +14,7 @@ exports.googleAuthCallback = asyncHandler(async (req, res) => {
   res.cookie("JWTToken", token, {
     domain: "https://www.eshopapp.shop", // allow subdomain sharing
     httpOnly: false,       // Accessible via JavaScript
-    secure: true,          // Only sent over HTTPS
+    secure: false,          // Only sent over HTTPS
     sameSite: "None",      // Allow cross-site usage
     maxAge: 90 * 24 * 60 * 60 * 1000, // Cookie expires in 90 days
   });
