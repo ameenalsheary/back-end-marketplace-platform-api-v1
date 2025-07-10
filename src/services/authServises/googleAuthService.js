@@ -12,6 +12,7 @@ exports.googleAuthCallback = asyncHandler(async (req, res) => {
 
   // Set the token as an HTTP-only, secure cookie
   res.cookie("JWTToken", token, {
+    domain: ".eshopapp.shop", // allow subdomain sharing
     httpOnly: false,       // Accessible via JavaScript
     secure: true,          // Only sent over HTTPS
     sameSite: "None",      // Allow cross-site usage
