@@ -12,11 +12,11 @@ function addSecurityMiddlewares(app) {
 
   // Prepear CORS options
   const corsOptions = {
-    origin: [process.env.FRONT_END_BASE_URL],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+    // origin: [process.env.FRONT_END_BASE_URL],
+    // credentials: true,
+    // methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    // allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    // optionsSuccessStatus: 200 // Some legacy browsers choke on 204
   };
   
   // Enable CORS (Cross-Origin Resource Sharing) with specific frontend URL
