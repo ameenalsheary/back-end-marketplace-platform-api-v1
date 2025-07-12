@@ -1,4 +1,5 @@
 const express = require("express");
+const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
 const passport = require('passport');
 const dotenv = require("dotenv");
@@ -24,6 +25,9 @@ app.post(
   express.raw({ type: "application/json" }), // Get raw body for webhook
   handleStripeWebhook
 );
+
+// Parse cookies from incoming requests
+app.use(cookieParser());
 
 // Initialize passport for authentication
 app.use(passport.initialize());
