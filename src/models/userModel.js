@@ -43,11 +43,11 @@ const userSchema = new mongoose.Schema(
     emailVerificationCodeExpires: Date,
     phoneNumbers: [
       {
-        user_id: {
+        userId: {
           type: String,
           trim: true,
         },
-        phone_number: {
+        phoneNumber: {
           type: String,
           trim: true,
         },

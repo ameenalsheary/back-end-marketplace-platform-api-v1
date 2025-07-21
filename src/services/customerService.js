@@ -255,7 +255,7 @@ exports.addPhoneNumber = asyncHandler(async (req, res, next) => {
 
   // Check if phone number already exists for this user
   const phoneExists = user.phoneNumbers.some(
-    item => item.phone_number === decodedToken.phone_number
+    item => item.phoneNumber === decodedToken.phone_number
   );
 
   // If phone number exists, return current list (reversed)
@@ -271,8 +271,8 @@ exports.addPhoneNumber = asyncHandler(async (req, res, next) => {
 
   // Prepare new phone number data
   const phoneNumberData = {
-    user_id: decodedToken.uid,
-    phone_number: decodedToken.phone_number,
+    userId: decodedToken.uid,
+    phoneNumber: decodedToken.phone_number,
     isVerified: true,
   };
 

@@ -86,7 +86,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 });
 
 // @desc    Password reset code
-// @route   POST /api/v1/auth/passwordResetCode
+// @route   PUT /api/v1/auth/passwordResetCode
 // @access  Public
 exports.passwordResetCode = asyncHandler(async (req, res, next) => {
   const { passwordResetCode, newPassword } = req.body;
