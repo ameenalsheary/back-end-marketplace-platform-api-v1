@@ -113,10 +113,6 @@ const orderSchema = new mongoose.Schema(
       type: String,
       required: [true, "Phone is required."],
       trim: true,
-      match: [
-        /^\+?\d{8,15}$/,
-        "Phone must be between 8 and 15 digits and may include a country code (e.g., +123456789).",
-      ],
     },
     shippingAddress: {
       country: {

@@ -6,9 +6,19 @@ exports.createOrderValidator = [
     .notEmpty()
     .withMessage('Phone is required.')
     .isString()
-    .withMessage('Phone must be of type string.')
-    .matches(/^\+?\d{8,15}$/) // Allows optional + and 8-15 digits
-    .withMessage('Phone must be between 8 and 15 digits and may include a country code (e.g., +123456789).'),
+    .withMessage('Phone must be of type string.') 
+    .custom((phone, { req }) => {
+      // Check if phone number exist in customer's phone numbers
+      // Because phone numbers that in the customer's phone numbers are valid
+      const user = req.user; // Assuming req.user contains the authenticated user
+      if (user && user.phoneNumbers) {
+        const phoneNumbers = user.phoneNumbers.map(num => num.phone);
+        if (!phoneNumbers.includes(phone)) {
+          throw new Error('Phone number is not valid or does not exist in user\'s phone numbers.');
+        }
+      }
+      return true;
+    }),
 
   check('country')
     .notEmpty()
