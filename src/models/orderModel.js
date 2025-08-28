@@ -112,6 +112,8 @@ const orderSchema = new mongoose.Schema(
     phone: {
       type: String,
       required: [true, "Phone is required."],
+      minlength: [5, "Phone must be at least 5 characters."],
+      maxlength: [15, "Phone cannot exceed 15 characters."],
       trim: true,
     },
     shippingAddress: {
@@ -153,22 +155,5 @@ const orderSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-orderSchema.pre(/^find/, function (next) {
-  this.populate({
-    path: "orderItems.product",
-    select: [
-      "title",
-      "price",
-      "priceBeforeDiscount",
-      "discountPercent",
-      "imageCover",
-      "quantity",
-      "color",
-      "sizes",
-    ].join(" "), // Join fields into a single string
-  });
-  next();
-});
 
 module.exports = mongoose.model("Order", orderSchema);

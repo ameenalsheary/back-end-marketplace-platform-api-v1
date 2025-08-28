@@ -33,13 +33,13 @@ class ApiFeatures {
       this.mongooseQuery = this.mongooseQuery.select(fields);
     } else if (mudelName === `User`) {
       this.mongooseQuery = this.mongooseQuery.select(`
-        -emailVerifyCode
-        -emailVerifyCodeExpires
+        -emailVerificationCode
+        -emailVerificationCodeExpires
         -password
         -passwordChangedAt
         -passwordResetCode
         -passwordResetExpires
-        -passwordResetVerified
+        -isGoogleUser
       `);
     } else {
       this.mongooseQuery = this.mongooseQuery.select("-__v");

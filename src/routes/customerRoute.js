@@ -20,6 +20,7 @@ const {
 } = require("../utils/validators/cartValidator");
 
 const {
+  getCustomerOrderValidator,
   createOrderValidator,
 } = require("../utils/validators/orderValidator");
 
@@ -59,6 +60,7 @@ const {
 const {
   filterOrders,
   getCustomerOrders,
+  getCustomerOrder,
   customerCreateCashOrder,
   customerCreateStripeCheckoutSession,
 } = require("../services/orderServise");
@@ -233,6 +235,17 @@ router
     filterOrders,
     getCustomerOrders
   );
+
+router
+  .route("/orders/:id")
+  .get(
+    protect_allowedTo.protect(),
+    protect_allowedTo.allowedTo("admin", "customer"),
+    getCustomerOrderValidator,
+    getCustomerOrder
+  );
+
+
 
 router
   .route("/orders/cash-on-delivery")

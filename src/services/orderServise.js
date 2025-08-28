@@ -7,7 +7,7 @@ const cartModel = require("../models/cartModel");
 const orderModel = require("../models/orderModel");
 const productModel = require("../models/productModel");
 const userModel = require("../models/userModel");
-const { getAll } = require("./handlersFactory");
+const { getAll, getOne } = require("./handlersFactory");
 const {
   calculateAndUpdateCartPricing,
   filterAndUpdateCartItems,
@@ -71,15 +71,46 @@ const addAddressIfUniqueAndManageLimit = async (model, userId, address) => {
   }
 };
 
-// @desc    Get Customer Orders
+// @desc    Get customer orders
 // @route   POST /api/v1/customer/orders
 // @access  Pravite
 exports.filterOrders = asyncHandler(async (req, _, next) => {
   req.filterObj = { user: req.user._id };
+
+  req.query = {
+    ...req.query,
+    fields: [
+      "pricing",
+      "coupon",
+      "paymentMethod",
+      "paymentStatus",
+      "paidAt",
+      "orderStatus",
+      "deliveredAt",
+    ].join(" "), // Join fields into a single string
+  };
+
   next();
 });
 
 exports.getCustomerOrders = getAll(orderModel);
+
+// @desc    Get customer order by ID
+// @route   GET /api/v1/customer/orders/:id
+// @access  Private
+exports.getCustomerOrder = getOne(orderModel, {
+  path: "orderItems.product",
+  select: [
+    "title",
+    "price",
+    "priceBeforeDiscount",
+    "discountPercent",
+    "imageCover",
+    "quantity",
+    "color",
+    "sizes",
+  ].join(" "), // Join fields into a single string
+});
 
 // @desc    Customer create a cash order
 // @route   POST /api/v1/customer/orders/cash-on-delivery
