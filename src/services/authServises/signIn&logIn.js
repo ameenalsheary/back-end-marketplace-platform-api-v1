@@ -46,10 +46,10 @@ exports.logIn = asyncHandler(async (req, res, next) => {
   const document = await userModel.findOne({ email: body.email });
   
   // Check if user exists and password matches
-  if (!document || !(await bcrypt.compare(body.password, document.password))) {
+  if (!document || !(await bcrypt.compare(body.password, document.password || ""))) {
     return next(new ApiError("Invalid email or password.", 401));
   }
-  
+
   // Check if user account is blocked
   if (document.userBlock) {
     return next(new ApiError("Your account has been blocked. Please contact support.", 403));
