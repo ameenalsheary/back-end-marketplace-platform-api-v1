@@ -10,9 +10,12 @@ function addSecurityMiddlewares(app) {
   // Set security HTTP headers
   app.use(helmet());
 
+  // // Prepear origins
+  const origins = process.env.ALLOWED_ORIGINS.split(",");
+
   // Prepear CORS options
   const corsOptions = {
-    origin: [process.env.FRONT_END_BASE_URL],
+    origin: origins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
