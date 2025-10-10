@@ -83,3 +83,35 @@ exports.logInValidator = [
 
   validatorMiddleware,
 ];
+
+exports.signInValidator = [
+  check("email")
+    .notEmpty()
+    .withMessage("Email is required.")
+    .isString()
+    .withMessage("Email must be of type string.")
+    .isEmail()
+    .withMessage("Please provide a valid email address."),
+
+  validatorMiddleware,
+];
+
+exports.verifySignInValidator = [
+  check("email")
+    .notEmpty()
+    .withMessage("Email is required.")
+    .isString()
+    .withMessage("Email must be of type string.")
+    .isEmail()
+    .withMessage("Please provide a valid email address."),
+
+  check("verificationCode")
+    .notEmpty()
+    .withMessage("Verification code is required.")
+    .isString()
+    .withMessage("Verification code must be of type string.")
+    .isLength({ min: 4, max: 6 })
+    .withMessage("Verification code must be 4–6 digits"),
+
+  validatorMiddleware,
+];

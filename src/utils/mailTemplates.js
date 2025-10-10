@@ -112,3 +112,59 @@ exports.forgotPasswordTemplate = (fullName, code) => {
     </div>
   `;
 };
+
+exports.signInTemplate = (code) => {
+  return `
+    <div
+      style="
+        font-family: Arial, Helvetica, sans-serif;
+        color: #333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 30px 20px;
+        text-align: center;
+      "
+    >
+      <h1
+        style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #222"
+      >
+        Hi,
+      </h1>
+
+      <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.5; color: #555">
+        We detected a sign-in attempt to your <strong>E-shop Account</strong>. Please verify it's you by entering the code below:
+      </p>
+
+      <div
+        style="
+          background: #f8f9fa;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          padding: 16px;
+          display: inline-block;
+          margin-bottom: 24px;
+        "
+      >
+        <h2
+          style="
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #ff6a2f;
+          "
+        >
+          ${code}
+        </h2>
+      </div>
+
+      <p style="margin: 0 0 20px 0; font-size: 15px; color: #555">
+        Enter this code on the sign-in page to confirm your identity.
+      </p>
+
+      <p style="margin: 0; font-size: 14px; color: #777; line-height: 1.5">
+        <strong>Note:</strong> This code will expire in 5 minutes. If this wasn’t you, please ignore this email or contact our support team.
+      </p>
+    </div>
+  `;
+};

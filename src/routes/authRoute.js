@@ -3,15 +3,23 @@ const express = require(`express`);
 const {
   signUpValidator,
   logInValidator,
-} = require("../utils/validators/authValidators/signIn&logIn");
+  signInValidator,
+  verifySignInValidator
+} = require("../utils/validators/authValidators/authValidator");
+
 const {
   forgotPasswordValidator,
   passwordResetCodeValidator,
 } = require("../utils/validators/authValidators/forgotPassword");
+
 const {
   signUp,
   logIn,
-} = require("../services/authServises/signIn&logIn");
+  signIn,
+  verifySignIn,
+  logOut
+} = require("../services/authServises/authService");
+
 const {
   forgotPassword,
   passwordResetCode,
@@ -31,6 +39,26 @@ router
   .post(
     logInValidator,
     logIn
+  );
+
+router
+  .route("/signin")
+  .post(
+    signInValidator,
+    signIn
+  );
+
+router
+  .route("/verifysignin")
+  .post(
+    verifySignInValidator,
+    verifySignIn
+  );
+
+router
+  .route("/logout")
+  .post(
+    logOut
   );
 
 router
