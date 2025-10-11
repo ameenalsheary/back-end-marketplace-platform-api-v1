@@ -56,7 +56,7 @@ exports.logIn = asyncHandler(async (req, res, next) => {
 
   // Check if user account is blocked
   if (document.userBlock) {
-    return next(new ApiError("Your account has been blocked. Please contact support.", 403));
+    return next(new ApiError("Account blocked. Contact support.", 403));
   }
 
   // Remove sensitive data from user object
@@ -85,12 +85,18 @@ exports.signIn = asyncHandler(async (req, res, next) => {
   // Check if user already exists in database
   const userExist = await userModel.findOne({ email });
 
+  // Check if user account is blocked
+  if (userExist?.userBlock) {
+    return next(new ApiError("Account blocked. Contact support.", 403));
+  }
+
   // If user exists and has an unexpired verification code, return early
   if (userExist?.signInVerificationCodeExpires) {
     if (new Date(userExist.signInVerificationCodeExpires) > new Date()) {
       return res.status(200).json({
         status: "Success",
-        message: "Verification code sent to your email.",
+        message: "We sent a verification code to",
+        email: userExist.email,
       });
     }
   }
@@ -148,7 +154,8 @@ exports.signIn = asyncHandler(async (req, res, next) => {
   // Return success response
   res.status(200).json({
     status: "Success",
-    message: "Verification code sent to your email.",
+    message: "We sent a verification code to",
+    email: user.email,
   });
 });
 
@@ -200,17 +207,17 @@ exports.verifySignIn = asyncHandler(async (req, res, next) => {
   const token = createToken(user._id);
 
   // Set JWT token as HTTP-only cookie for security
-  res.cookie("JWTToken", token, {
+  res.cookie("accessToken", token, {
     httpOnly: true, // Prevents client-side JavaScript access
-    secure: process.env.MODE_ENV === "production", // HTTPS only in production
-    sameSite: "None", // Cross-site requests allowed
+    secure: true, // HTTPS only in production
+    sameSite: "none", // Cross-site requests allowed
     maxAge: 90 * 24 * 60 * 60 * 1000, // 90 days expiration
   });
 
   // Send success response
   res.status(200).json({
     status: "Success",
-    message: "Signed in successfully."
+    message: "Signed in successfully.",
   });
 });
 
@@ -219,7 +226,7 @@ exports.verifySignIn = asyncHandler(async (req, res, next) => {
 // @access Public
 exports.logOut = asyncHandler(async (_, res) => {
   // Clear JWT cookie by setting it to empty and expired
-  res.cookie("JWTToken", "", {
+  res.cookie("accessToken", "", {
     httpOnly: true,
     secure: process.env.MODE_ENV === "production",
     sameSite: "None",

@@ -7,14 +7,21 @@ const ApiError = require("../../utils/apiErrore");
 // @desc make sure the user is logged in
 exports.protect = (emailVerification = false) =>
   asyncHandler(async (req, _, next) => {
-    // 1) Check if token exist, if exist get
+    // 1) Check if token exists in headers or cookies
     let token;
+    
+    // Check Authorization header first
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer ")
     ) {
       token = req.headers.authorization.split(" ")[1];
+    } 
+    // If not in header, check cookies
+    else if (req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
     }
+
     if (!token) {
       return next(new ApiError("Access denied. Please log in to access this route.", 401));
     }
@@ -71,14 +78,19 @@ exports.allowedTo = (...roles) =>
 
 // check the token
 exports.checkTheToken = async (req) => {
-  // Early return if no authorization header or invalid format
+  let token;
+
+  // Check Authorization header first
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return {};
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } 
+  // If not in header, check cookies
+  else if (req.cookies && req.cookies.accessToken) {
+    token = req.cookies.accessToken;
   }
 
-  // Extract token
-  const token = authHeader.split(" ")[1];
+  // Return empty object if no token found
   if (!token) {
     return {};
   }
