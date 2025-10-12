@@ -209,8 +209,8 @@ exports.verifySignIn = asyncHandler(async (req, res, next) => {
   // Set JWT token as HTTP-only cookie for security
   res.cookie("accessToken", token, {
     httpOnly: true, // Prevents client-side JavaScript access
-    secure: true, // HTTPS only in production
-    sameSite: "none", // Cross-site requests allowed
+    secure: process.env.MODE_ENV === "production", // HTTPS only in production
+    sameSite: process.env.MODE_ENV === "production" ? "None" : "Lax", // Cross-site requests allowed
     maxAge: 90 * 24 * 60 * 60 * 1000, // 90 days expiration
   });
 
@@ -228,8 +228,8 @@ exports.logOut = asyncHandler(async (_, res) => {
   // Clear JWT cookie by setting it to empty and expired
   res.cookie("accessToken", "", {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: process.env.MODE_ENV === "production",
+    sameSite: process.env.MODE_ENV === "production" ? "None" : "Lax",
     expires: new Date(0), // Expire immediately
   });
 

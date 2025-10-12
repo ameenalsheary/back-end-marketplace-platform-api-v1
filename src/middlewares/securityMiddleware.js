@@ -10,17 +10,12 @@ function addSecurityMiddlewares(app) {
   // Set security HTTP headers
   app.use(helmet());
 
-  // // Prepear origins
-  const origins = process.env.ALLOWED_ORIGINS.split(",");
-
   // Prepear CORS options
   const corsOptions = {
     origin(origin, callback) {
-      if (!origin || origins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+      const allowed = process.env.ALLOWED_ORIGINS.split(",");
+      if (!origin || allowed.includes(origin)) callback(null, true);
+      else callback(new Error("Not allowed by CORS."));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
