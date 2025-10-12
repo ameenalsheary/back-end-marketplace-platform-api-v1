@@ -228,8 +228,8 @@ exports.logOut = asyncHandler(async (_, res) => {
   // Clear JWT cookie by setting it to empty and expired
   res.cookie("accessToken", "", {
     httpOnly: true,
-    secure: process.env.MODE_ENV === "production",
-    sameSite: "None",
+    secure: true,
+    sameSite: "none",
     expires: new Date(0), // Expire immediately
   });
 
