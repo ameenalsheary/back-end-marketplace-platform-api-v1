@@ -211,8 +211,6 @@ exports.verifySignIn = asyncHandler(async (req, res, next) => {
     httpOnly: true, // Prevents client-side JavaScript access
     secure: process.env.MODE_ENV === "production", // HTTPS only in production
     sameSite: process.env.MODE_ENV === "production" ? "None" : "Lax", // Cross-site requests allowed
-    domain: process.env.ALLOWED_ORIGINS.split(",")[0],
-    path: "/",
     maxAge: 90 * 24 * 60 * 60 * 1000, // 90 days expiration
   });
 
@@ -232,8 +230,6 @@ exports.logOut = asyncHandler(async (_, res) => {
     httpOnly: true,
     secure: process.env.MODE_ENV === "production",
     sameSite: process.env.MODE_ENV === "production" ? "None" : "Lax",
-    domain: process.env.ALLOWED_ORIGINS.split(",")[0],
-    path: "/",
     expires: new Date(0), // Expire immediately
   });
 
