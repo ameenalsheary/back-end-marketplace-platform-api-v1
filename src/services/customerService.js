@@ -24,7 +24,8 @@ const {
 // @access Private
 exports.getCustomerDetails = asyncHandler(async (req, res) => {
   const id = req.user._id;
-  const document = await userModel.findById(id);
+  const fields = req.query.fields;
+  const document = await userModel.findById(id).select(fields);
   const user = userPropertysPrivate(document);
   res.status(200).json({ data: user });
 });
